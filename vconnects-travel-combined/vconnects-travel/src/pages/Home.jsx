@@ -3,8 +3,9 @@ import { Link, navigate } from '../router.jsx';
 import SearchForm from '../components/SearchForm.jsx';
 import Icon from '../components/Icon.jsx';
 import DrivingCar from '../components/DrivingCar.jsx';
-import { POPULAR_ROUTES } from '../data/rides.js';
 import { addDays, todayStr } from '../lib/format.js';
+import { popularRoutes } from '../lib/ridesApi.js';
+import { useApi } from '../lib/useApi.js';
 
 const SECTIONS = [
   { tag: 'Before the road', title: 'Know the risk.\nChoose your ride.', text: 'Every ride is scored and every driver is checked, so you know what you are getting into before you book.', features: [
@@ -17,12 +18,21 @@ const SECTIONS = [
   ] },
 ];
 
+// Busiest upcoming routes, from real rides (hidden until there are some).
 function Popular() {
-  return <div className="popular"><span>Popular:</span>{POPULAR_ROUTES.map(([from, to]) => (
-    <button type="button" key={from + to} className="pill" onClick={() => navigate('/search', { from, to, date: addDays(todayStr(), 1), seats: 1 })}>
-      {from} <Icon name="arrow" size={12} /> {to}
-    </button>
-  ))}</div>;
+  const { data } = useApi(popularRoutes, []);
+  if (!data?.length) return null;
+  return (
+    <div className="popular"><span>Popular:</span>{data.map((r) => (
+      <button type="button" key={r.from.area.code + r.to.area.code} className="pill"
+        onClick={() => navigate('/search', {
+          from: r.from.placeId, fromLabel: r.from.area.name, to: r.to.placeId, toLabel: r.to.area.name,
+          date: addDays(todayStr(), 1), seats: 1,
+        })}>
+        {r.from.area.name} <Icon name="arrow" size={12} /> {r.to.area.name}
+      </button>
+    ))}</div>
+  );
 }
 
 export default function Home() {
@@ -35,7 +45,7 @@ export default function Home() {
           <div className="container">
             <div className="journey-copy">
               <span className="tag">VConnects · Safer carpooling</span>
-              <h1>Travel<br /><span className="grad-text">Risk Program</span></h1>
+              <h1>Risk<br /><span className="grad-text">Freelance Travel Program</span></h1>
               <p>VConnects matches you with verified drivers heading your way, and scores every trip so you can pick the safest option, not just the cheapest.</p>
               <a href="#find" className="btn btn-accent journey-find">Find a ride <Icon name="arrow" size={16} /></a>
             </div>
@@ -75,7 +85,7 @@ export default function Home() {
         <div className="container">
           <span className="tag">Plug in and go</span>
           <div className="home-find-heading"><h2>Your seat is<br />already waiting.</h2><p>Pick your cities, date and seats. Compare price, departure time and trip risk side by side.</p></div>
-          <SearchForm /><Popular />
+          <SearchForm />
           <Link to="/publish" className="home-offer"><span>Heading somewhere? Offer a ride and share the cost</span><Icon name="arrow" size={24} /></Link>
         </div>
       </section>

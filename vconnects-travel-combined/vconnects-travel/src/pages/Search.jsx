@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import SearchForm from '../components/SearchForm.jsx';
 import RideCard from '../components/RideCard.jsx';
-import { cityByName } from '../data/cities.js';
 import { fmtDate } from '../lib/format.js';
 import { searchRides } from '../lib/ridesApi.js';
 import { useApi } from '../lib/useApi.js';
@@ -19,7 +18,8 @@ export default function Search({ query }) {
   const [daylight, setDaylight] = useState(false);
 
   const seats = Number(query.seats) || 1;
-  const valid = Boolean(cityByName(query.from) && cityByName(query.to) && query.date);
+  // from / to are Google place IDs picked in the search form; the labels are only for display.
+  const valid = Boolean(query.from && query.to && query.date);
 
   const { data, error, loading, reload } = useApi(
     () => (valid ? searchRides({ from: query.from, to: query.to, date: query.date, seats }) : Promise.resolve([])),
@@ -41,7 +41,7 @@ export default function Search({ query }) {
       {!valid ? (
         <div className="empty">
           <h2>Where to?</h2>
-          <p>Enter your cities and a date above to see rides.</p>
+          <p>Pick where you're leaving from, where you're going and a date to see rides nearby.</p>
         </div>
       ) : (
         <div className="results-layout">
@@ -70,7 +70,7 @@ export default function Search({ query }) {
           <section aria-live="polite">
             <div className="results-head">
               <div>
-                <h2>{query.from} → {query.to}</h2>
+                <h2>{query.fromLabel || 'From'} → {query.toLabel || 'To'}</h2>
                 <p className="muted">{fmtDate(query.date, { weekday: 'long', day: 'numeric', month: 'long' })} · {seats} seat{seats > 1 ? 's' : ''} · {loading ? 'searching…' : `${shown.length} ride${shown.length === 1 ? '' : 's'}`}</p>
               </div>
               <div className="seg" role="group" aria-label="Sort by">

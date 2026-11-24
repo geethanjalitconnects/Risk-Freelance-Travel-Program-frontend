@@ -125,13 +125,3 @@ export function getRide(id, published = [], bookings = []) {
   return ride ? enrichRide(ride, bookings) : null;
 }
 
-export const POPULAR_ROUTES = [
-  ['Chennai', 'Bengaluru'],
-  ['Bengaluru', 'Mysuru'],
-  ['Hyderabad', 'Bengaluru'],
-  ['Mumbai', 'Pune'],
-  ['Coimbatore', 'Kochi'],
-  ['Chennai', 'Puducherry'],
-];
-
-export const ALL_CITY_NAMES = CITIES.map((c) => c.name);

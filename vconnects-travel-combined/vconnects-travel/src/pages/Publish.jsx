@@ -1,7 +1,6 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, navigate } from '../router.jsx';
-import { cityByCode, cityByName, meetingPoints } from '../data/cities.js';
-import { ALL_CITY_NAMES, VEHICLES } from '../data/rides.js';
+import { VEHICLES } from '../data/rides.js';
 import { VEHICLE_FEATURES } from '../lib/risk.js';
 import { addDays, fmtPrice, todayStr, toIsoLocal } from '../lib/format.js';
 import { useStore } from '../lib/store.js';
@@ -10,24 +9,34 @@ import { useApi } from '../lib/useApi.js';
 import { TRAVEL_WITH, getRide, previewRide, publishRide, updateRide } from '../lib/ridesApi.js';
 import { getVerification } from '../lib/verificationApi.js';
 import RiskBreakdown from '../components/RiskBreakdown.jsx';
+import LocationAutocomplete from '../components/LocationAutocomplete.jsx';
+import { getArea } from '../lib/placesApi.js';
 
 const blankForm = () => ({
-  from: '', to: '', date: addDays(todayStr(), 1), time: '07:00', seats: 3, price: '',
+  from: null, to: null, date: addDays(todayStr(), 1), time: '07:00', seats: 3, price: '',
   model: '', year: String(new Date().getFullYear() - 2), features: ['airbags', 'abs'],
   travelWith: 'anyone', notes: '', pickup: '', dropoff: '',
 });
 
-// A blank pickup / drop-off means the city's first meeting point.
+// A stored ride's place, in the shape LocationAutocomplete uses.
+const placeOf = (area, placeId) => ({ label: area.name, placeId, area, stored: true });
+
 function formFromRide(r) {
-  const from = cityByCode(r.from);
-  const to = cityByCode(r.to);
   return {
-    from: from?.name || '', to: to?.name || '', date: r.date, time: r.depart.slice(11, 16), seats: r.seatsTotal,
+    from: placeOf(r.fromArea, r.fromPlaceId), to: placeOf(r.toArea, r.toPlaceId),
+    date: r.date, time: r.depart.slice(11, 16), seats: r.seatsTotal,
     price: String(r.price), model: r.vehicle.model, year: String(r.vehicle.year), features: r.vehicle.features,
-    travelWith: r.travelWith, notes: r.notes,
-    pickup: from && r.pickup === meetingPoints(from)[0] ? '' : r.pickup,
-    dropoff: to && r.dropoff === meetingPoints(to)[0] ? '' : r.dropoff,
+    travelWith: r.travelWith, notes: r.notes, pickup: r.pickup, dropoff: r.dropoff,
   };
+}
+
+// Pickup / drop-off options: the picked place itself, then the area's meeting points (admin-managed),
+// plus the ride's current choice when editing. A blank value means the first option.
+function pointOptions(place, current) {
+  if (!place) return [];
+  const opts = [...(place.stored ? [] : [place.label]), ...(place.area?.meetingPoints || [])];
+  if (current && !opts.includes(current)) opts.unshift(current);
+  return [...new Set(opts.filter(Boolean))];
 }
 
 // API field -> form field, for server-side validation messages.
@@ -108,7 +117,6 @@ function NotVerified({ v, editing }) {
 }
 
 function PublishForm({ editId }) {
-  const listId = useId();
   const profile = useStore((s) => s.profile);
   const [f, setF] = useState(blankForm);
   const [ride, setRide] = useState(null); // the ride being edited
@@ -144,9 +152,28 @@ function PublishForm({ editId }) {
   const locked = Boolean(ride?.hasBookings);
   const booked = ride ? ride.seatsTotal - ride.seatsLeft : 0;
 
-  const from = cityByName(f.from);
-  const to = cityByName(f.to);
-  const routeOk = Boolean(from && to && from.code !== to.code);
+  const from = f.from;
+  const to = f.to;
+  const sameArea = Boolean(from?.area && to?.area && from.area.code === to.area.code);
+  const routeOk = Boolean(from && to && !sameArea);
+  const routeChanged = !ride || from?.placeId !== ride.fromPlaceId || to?.placeId !== ride.toPlaceId
+    || (from && !from.stored) || (to && !to.stored);
+
+  // A stored ride's areas come without meeting points: load them once for the dropdowns.
+  useEffect(() => {
+    for (const key of ['from', 'to']) {
+      const p = f[key];
+      if (p?.stored && p.area && !p.area.meetingPoints) {
+        getArea(p.area.code)
+          .then((area) => setF((prev) => (prev[key] === p ? { ...prev, [key]: { ...p, area } } : prev)))
+          .catch(() => {});
+      }
+    }
+  }, [f.from, f.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pickPlace = (key, pointKey) => (v) => setF((p) => ({ ...p, [key]: v, [pointKey]: '' }));
+  const pickupOptions = pointOptions(from, ride && !routeChanged ? ride.pickup : '');
+  const dropoffOptions = pointOptions(to, ride && !routeChanged ? ride.dropoff : '');
 
   // Risk score and the allowed fare range come from the server, which holds the road distances
   // and the admin's fare settings. Debounced so typing doesn't fire a request per keystroke.
@@ -160,7 +187,7 @@ function PublishForm({ editId }) {
     const t = setTimeout(() => {
       const year = Number(f.year);
       previewRide({
-        from: from.code, to: to.code, depart: `${f.date}T${f.time}`,
+        from: from.placeId, to: to.placeId, depart: `${f.date}T${f.time}`,
         vehicle: { model: f.model, features: f.features, ...(year >= 1900 && year <= 2100 ? { year } : {}) },
       })
         .then((p) => alive && setPreview(p))
@@ -171,7 +198,7 @@ function PublishForm({ editId }) {
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeOk, from?.code, to?.code, f.date, f.time, f.model, f.year, featuresKey]);
+  }, [routeOk, from?.placeId, to?.placeId, f.date, f.time, f.model, f.year, featuresKey]);
 
   const travelOption = TRAVEL_WITH.find((t) => t.value === f.travelWith);
 
@@ -179,9 +206,9 @@ function PublishForm({ editId }) {
     e.preventDefault();
     const err = {};
     if (!locked) {
-      if (!from) err.from = 'Choose a city from the list.';
-      if (!to) err.to = 'Choose a city from the list.';
-      if (from && to && from.code === to.code) err.to = 'Destination must differ from the start.';
+      if (!from) err.from = 'Pick a place from the suggestions.';
+      if (!to) err.to = 'Pick a place from the suggestions.';
+      if (sameArea) err.to = 'Pick a destination in a different area from the start.';
       if (!f.date || f.date < todayStr()) err.date = 'Pick today or a later date.';
       if (f.date && f.time && new Date(`${f.date}T${f.time}`) <= new Date()) err.time = 'That time has already passed.';
       const price = Number(f.price);
@@ -199,9 +226,8 @@ function PublishForm({ editId }) {
 
     const body = { seatsTotal: Number(f.seats), pickup: f.pickup, dropoff: f.dropoff, notes: f.notes.trim() };
     if (!locked) {
+      if (routeChanged) Object.assign(body, { from: from.placeId, to: to.placeId, fromLabel: from.label, toLabel: to.label });
       Object.assign(body, {
-        from: from.code,
-        to: to.code,
         depart: `${f.date}T${f.time}`,
         price: Number(f.price),
         travelWith: f.travelWith,
@@ -263,14 +289,17 @@ function PublishForm({ editId }) {
         <div className="panel form-stack">
           <h3>Trip</h3>
           <div className="row2">
-            <label className="field"><span>Leaving from</span>
-              <input list={listId} value={f.from} onChange={(e) => set('from', e.target.value)} placeholder="City" disabled={locked} />
-              <Err k="from" /></label>
-            <label className="field"><span>Going to</span>
-              <input list={listId} value={f.to} onChange={(e) => set('to', e.target.value)} placeholder="City" disabled={locked} />
-              <Err k="to" /></label>
+            <div>
+              <LocationAutocomplete label="Leaving from" className="field" value={f.from} onChange={pickPlace('from', 'pickup')}
+                placeholder="Area, town or city" disabled={locked} invalid={Boolean(errors.from)} currentLocation />
+              <Err k="from" />
+            </div>
+            <div>
+              <LocationAutocomplete label="Going to" className="field" value={f.to} onChange={pickPlace('to', 'dropoff')}
+                placeholder="Area, town or city" disabled={locked} invalid={Boolean(errors.to)} />
+              <Err k="to" />
+            </div>
           </div>
-          <datalist id={listId}>{ALL_CITY_NAMES.map((n) => <option key={n} value={n} />)}</datalist>
           <div className="row2">
             <label className="field"><span>Date</span>
               <input type="date" min={todayStr()} value={f.date} onChange={(e) => set('date', e.target.value)} disabled={locked} /><Err k="date" /></label>
@@ -280,13 +309,13 @@ function PublishForm({ editId }) {
           <div className="row2">
             <label className="field"><span>Pickup point (optional)</span>
               <select value={f.pickup} onChange={(e) => set('pickup', e.target.value)} disabled={!from}>
-                <option value="">{from ? meetingPoints(from)[0] : 'Choose a city first'}</option>
-                {from && meetingPoints(from).slice(1).map((p) => <option key={p}>{p}</option>)}
+                <option value="">{pickupOptions[0] || (from ? from.area?.name : 'Choose a place first')}</option>
+                {pickupOptions.slice(1).map((p) => <option key={p}>{p}</option>)}
               </select><Err k="pickup" /></label>
             <label className="field"><span>Drop-off point (optional)</span>
               <select value={f.dropoff} onChange={(e) => set('dropoff', e.target.value)} disabled={!to}>
-                <option value="">{to ? meetingPoints(to)[0] : 'Choose a city first'}</option>
-                {to && meetingPoints(to).slice(1).map((p) => <option key={p}>{p}</option>)}
+                <option value="">{dropoffOptions[0] || (to ? to.area?.name : 'Choose a place first')}</option>
+                {dropoffOptions.slice(1).map((p) => <option key={p}>{p}</option>)}
               </select><Err k="dropoff" /></label>
           </div>
           <div className="row2">

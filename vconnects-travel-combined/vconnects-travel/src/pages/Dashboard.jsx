@@ -1,5 +1,4 @@
 import { Link } from '../router.jsx';
-import { cityByCode } from '../data/cities.js';
 import { fmtDateTime, fmtPrice } from '../lib/format.js';
 import { useAuth } from '../lib/auth.js';
 import { listBookings, myRides } from '../lib/ridesApi.js';
@@ -8,7 +7,7 @@ import Icon from '../components/Icon.jsx';
 import VerificationBanner from '../components/VerificationBanner.jsx';
 import { getVerification } from '../lib/verificationApi.js';
 
-const cityName = (code) => cityByCode(code)?.name || code;
+const cityName = (area, code) => area?.name || code;
 
 function Stat({ label, value }) {
   return <div className="stat"><strong>{value}</strong><span>{label}</span></div>;
@@ -50,7 +49,7 @@ function Body({ userId, name }) {
           ) : upcoming.map((x) => (
             <article key={x.id} className="panel dash-row">
               <div>
-                <h3>{cityName(x.ride.from)} → {cityName(x.ride.to)}</h3>
+                <h3>{cityName(x.ride.fromArea, x.ride.from)} → {cityName(x.ride.toArea, x.ride.to)}</h3>
                 <p className="muted">{fmtDateTime(x.ride.depart)} · {x.seats} seat{x.seats > 1 ? 's' : ''} · {x.ride.driver.name}</p>
               </div>
               <span className={'status-tag st-' + x.status}>{x.status.replace('_', ' ')}</span>
@@ -63,7 +62,7 @@ function Body({ userId, name }) {
           ) : r.slice(0, 5).map((x) => (
             <article key={x.id} className="panel dash-row">
               <div>
-                <h3>{cityName(x.from)} → {cityName(x.to)}</h3>
+                <h3>{cityName(x.fromArea, x.from)} → {cityName(x.toArea, x.to)}</h3>
                 <p className="muted">{fmtDateTime(x.depart)} · {x.seatsTotal - x.seatsLeft}/{x.seatsTotal} seats booked · {fmtPrice(x.price)}/seat</p>
               </div>
               <Link to={`/ride/${encodeURIComponent(x.id)}`} className="btn btn-sm btn-ghost">View</Link>

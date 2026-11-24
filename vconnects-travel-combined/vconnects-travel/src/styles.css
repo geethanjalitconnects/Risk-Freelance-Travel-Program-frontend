@@ -727,3 +727,32 @@ main, .site-footer, footer { position: relative; z-index: 1; }
 .st-expired { background: #eee; color: #555; }
 
 .btn-call { padding: 4px 10px; font-size: 13px; white-space: nowrap; }
+
+/* LocationAutocomplete (From/To place picker) */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.loc-ac { position: relative; }
+.loc-ac > label { display: contents; }
+.loc-ac-box { position: relative; display: flex; align-items: center; }
+.loc-ac-box > svg { position: absolute; left: 12px; color: var(--teal); pointer-events: none; }
+.loc-ac-box input { width: 100%; height: 48px; padding: 0 40px 0 36px; border: 1.5px solid var(--line); border-radius: 12px; font: inherit; font-size: 1rem; font-weight: 500; color: var(--ink); background: #fff; min-width: 0; }
+.loc-ac-box input:focus { border-color: var(--teal); outline: none; box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.25); }
+.loc-ac-box input[aria-invalid="true"] { border-color: var(--danger); }
+.loc-ac-box input:disabled { background: var(--cream-2); color: var(--muted); }
+.loc-ac-clear { position: absolute; right: 6px; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; }
+.loc-ac-clear:hover, .loc-ac-clear:focus-visible { background: var(--tint); color: var(--ink); }
+.loc-ac-spin { position: absolute; right: 44px; width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--teal); border-radius: 50%; animation: loc-ac-spin 0.7s linear infinite; }
+@keyframes loc-ac-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loc-ac-spin { animation: none; } }
+.loc-ac-list { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0; min-width: 240px; max-height: 320px; overflow-y: auto; margin: 0; padding: 6px; list-style: none; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 14px 34px rgba(7, 59, 82, 0.14); font-weight: 400; }
+.loc-ac-opt { display: flex; flex-direction: column; gap: 2px; min-height: 44px; justify-content: center; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.loc-ac-opt.active { background: var(--tint); }
+.loc-ac-main { font-size: 0.95rem; font-weight: 600; color: var(--ink); }
+.loc-ac-sub { font-size: 0.8rem; color: var(--muted); }
+.loc-ac-note { padding: 10px; font-size: 0.85rem; color: var(--muted); }
+.loc-ac-attr { display: flex; justify-content: flex-end; padding: 6px 10px 2px; border-top: 1px solid var(--line); margin-top: 4px; font-family: Roboto, system-ui, sans-serif; font-size: 12px; font-weight: 400; color: #5e5e5e; white-space: nowrap; }
+.loc-ac-msg { display: block; margin-top: 4px; font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+.loc-ac-msg.err { color: var(--danger); }
+.loc-ac-head { padding: 6px 10px 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.loc-ac-main svg { vertical-align: -2px; color: var(--muted); }
+.loc-ac-attr .link-btn { border: 0; background: none; padding: 2px 0; font: inherit; color: var(--brand); cursor: pointer; text-decoration: underline; }
+.loc-ac-opt .loc-ac-head { padding: 0 0 4px; }

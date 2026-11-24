@@ -61,10 +61,11 @@ export async function loadMe() {
 }
 
 // ---- sign-in ----
-export const sendOtp = (phone) => api.post('/auth/otp/send', { phone }, { auth: false });
+// A 6-digit code is emailed; the same step signs up new addresses.
+export const sendOtp = (email) => api.post('/auth/email-otp/send', { email }, { auth: false });
 
-export async function verifyOtp(phone, code) {
-  const data = await api.post('/auth/otp/verify', { phone, code }, { auth: false });
+export async function verifyOtp(email, code) {
+  const data = await api.post('/auth/email-otp/verify', { email, code }, { auth: false });
   setTokens({ access: data.access, refresh: data.refresh });
   setUser(data.user);
   return data;

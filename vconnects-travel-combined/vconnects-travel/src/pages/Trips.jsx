@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from '../router.jsx';
-import { cityByCode } from '../data/cities.js';
 import { fmtDateTime, fmtPrice, fmtTime, toIsoLocal } from '../lib/format.js';
 import { useStore } from '../lib/store.js';
 import { loadMe, useAuth } from '../lib/auth.js';
@@ -32,7 +31,7 @@ const HELPLINES = [
 
 const RANK = { pending_payment: -1, in_progress: 0, confirmed: 1, completed: 2, cancelled: 3, expired: 4 };
 const riskObj = (b) => ({ key: b.riskBand, label: b.riskBand[0].toUpperCase() + b.riskBand.slice(1) });
-const cityName = (code) => cityByCode(code)?.name || code;
+const cityName = (area, code) => area?.name || code;
 const fmtMs = (ms) => fmtDateTime(toIsoLocal(new Date(ms)));
 
 function LiveTrip({ b, contacts, act, busy }) {
@@ -47,7 +46,7 @@ function LiveTrip({ b, contacts, act, busy }) {
     <div className="live">
       <div className="live-head">
         <span className="live-pill"><span className="live-dot" /> Trip in progress</span>
-        <strong>{cityName(b.ride.from)} → {cityName(b.ride.to)}</strong>
+        <strong>{cityName(b.ride.fromArea, b.ride.from)} → {cityName(b.ride.toArea, b.ride.to)}</strong>
       </div>
       <div className="progress" aria-label={`${done} of ${CHECKPOINTS.length} check-ins done`}>
         <span style={{ width: `${(done / CHECKPOINTS.length) * 100}%` }} />
@@ -321,7 +320,7 @@ function BookingCard({ b, contacts, onChange }) {
     <article className={'trip-card status-' + b.status}>
       <div className="trip-top">
         <div>
-          <h3>{cityName(b.ride.from)} → {cityName(b.ride.to)}</h3>
+          <h3>{cityName(b.ride.fromArea, b.ride.from)} → {cityName(b.ride.toArea, b.ride.to)}</h3>
           <p className="muted">{fmtDateTime(b.ride.depart)} · {b.seats} seat{b.seats > 1 ? 's' : ''} · {fmtPrice(b.total)}</p>
         </div>
         <span className={'status-tag st-' + b.status}>{b.status.replace('_', ' ')}</span>
@@ -489,7 +488,7 @@ function PublishedCard({ r, onRemoved, onUpdated }) {
     <article className="trip-card">
       <div className="trip-top">
         <div>
-          <h3>{cityName(r.from)} → {cityName(r.to)}</h3>
+          <h3>{cityName(r.fromArea, r.from)} → {cityName(r.toArea, r.to)}</h3>
           <p className="muted">
             {fmtDateTime(r.depart)} · {booked}/{r.seatsTotal} seats booked · {fmtPrice(r.price)}/seat · {r.vehicle.model}
             {r.travelWith !== 'anyone' && ` · ${travelWithLabel(r.travelWith)}`}

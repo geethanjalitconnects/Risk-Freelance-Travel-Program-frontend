@@ -88,7 +88,7 @@ function refreshTokens() {
   return refreshing;
 }
 
-async function request(path, { method = 'GET', body, auth = true, retry = true, headers: extra } = {}) {
+async function request(path, { method = 'GET', body, auth = true, retry = true, headers: extra, signal } = {}) {
   const headers = { Accept: 'application/json', ...extra };
   // FormData (file uploads) is sent as-is so the browser sets the multipart boundary.
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -98,13 +98,14 @@ async function request(path, { method = 'GET', body, auth = true, retry = true, 
 
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
-  } catch {
+    res = await fetch(BASE + path, { method, headers, signal, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
+  } catch (e) {
+    if (signal?.aborted) throw e; // cancelled by the caller (AbortController), not a network error
     throw new ApiError(0, null);
   }
 
   if (res.status === 401 && auth && tokens?.refresh && retry) {
-    if (await refreshTokens()) return request(path, { method, body, auth, retry: false, headers: extra });
+    if (await refreshTokens()) return request(path, { method, body, auth, retry: false, headers: extra, signal });
     clearTokens();
     authLostHandler();
   }

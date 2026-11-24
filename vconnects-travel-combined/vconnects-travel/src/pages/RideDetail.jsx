@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, navigate } from '../router.jsx';
-import { cityByCode } from '../data/cities.js';
 import { VEHICLE_FEATURES } from '../lib/risk.js';
 import { fmtDateTime, fmtDuration, fmtPrice, fmtTime, toIsoLocal } from '../lib/format.js';
 import { useStore } from '../lib/store.js';
@@ -42,8 +41,8 @@ export default function RideDetail({ id }) {
     );
   }
 
-  const from = cityByCode(ride.from);
-  const to = cityByCode(ride.to);
+  const from = ride.fromArea;
+  const to = ride.toArea;
   const signedIn = auth.status === 'signed-in';
   const departed = ride.depart <= toIsoLocal(new Date());
   const maxSeats = Math.max(1, Math.min(4, ride.seatsLeft));

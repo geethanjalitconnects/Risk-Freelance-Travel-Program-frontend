@@ -240,7 +240,8 @@ function SubmitForm({ current, onDone, onCancel }) {
       {current.status !== 'not_submitted' && <p className="fine">Resubmitting replaces the documents you sent before.</p>}
 
       <label className="field"><span>Email (we email you the review result)</span>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email"
+          readOnly={Boolean(current.email)} disabled={Boolean(current.email)} />
         <Err k="email" /></label>
 
       <label className="field"><span>Vehicle registration number</span>

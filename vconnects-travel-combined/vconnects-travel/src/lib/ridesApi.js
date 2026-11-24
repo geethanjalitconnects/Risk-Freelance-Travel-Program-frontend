@@ -6,6 +6,7 @@ export const searchRides = ({ from, to, date, seats = 1 }) =>
   api.get('/rides/search?' + new URLSearchParams({ from, to, date, seats: String(seats) }).toString());
 
 export const getRide = (id) => api.get(`/rides/${encodeURIComponent(id)}`);
+export const popularRoutes = () => api.get('/rides/popular');
 export const myRides = () => api.get('/rides/mine');
 export const publishRide = (body) => api.post('/rides', body);
 export const updateRide = (id, body) => api.patch(`/rides/${encodeURIComponent(id)}`, body);

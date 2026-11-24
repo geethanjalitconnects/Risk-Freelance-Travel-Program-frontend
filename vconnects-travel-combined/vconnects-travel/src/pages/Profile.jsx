@@ -44,6 +44,7 @@ const VERIFICATION_TEXT = {
 function ProfileForm({ p }) {
   const [name, setName] = useState(p.name);
   const [email, setEmail] = useState(p.email || '');
+  const [phone, setPhone] = useState(p.phone || '');
   const [saved, setSaved] = useState(false);
   const [aboutErr, setAboutErr] = useState('');
   const [c, setC] = useState({ name: '', phone: '', relation: '' });
@@ -118,12 +119,19 @@ function ProfileForm({ p }) {
         <h3>About you {saved && <small className="ok-text">Saved</small>}</h3>
         <div className="row2">
           <label className="field"><span>Full name</span><input value={name} onChange={(e) => onName(e.target.value)} autoComplete="name" /></label>
-          <label className="field"><span>Phone (your sign-in number)</span><input value={p.phone} readOnly disabled /></label>
+          <label className="field"><span>Mobile number (for drivers / passengers and SOS)</span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="+91 98765 43210"
+              onBlur={() => phone.trim() && phone.trim() !== (p.phone || '') && save({ phone: phone.trim() })} /></label>
         </div>
-        <label className="field"><span>Email (we email you when your driver documents are reviewed)</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com"
-            onBlur={() => email.trim() !== (p.email || '') && save({ email: email.trim() })} />
-        </label>
+        {p.email ? (
+          <label className="field"><span>Email (you sign in with this; review results are emailed here)</span>
+            <input type="email" value={p.email} readOnly disabled /></label>
+        ) : (
+          <label className="field"><span>Add your email: you’ll sign in with it from now on</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com"
+              onBlur={() => email.trim() && save({ email: email.trim() })} />
+          </label>
+        )}
         <label className="field"><span>Gender (enables women-only and men-only rides)</span>
           <select value={p.gender} disabled={Boolean(p.genderLocked)} onChange={(e) => save({ gender: e.target.value })}>
             {GENDER_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}

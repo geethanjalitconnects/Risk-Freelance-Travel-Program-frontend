@@ -1,5 +1,4 @@
 import { Link } from '../router.jsx';
-import { cityByCode } from '../data/cities.js';
 import { fmtDuration, fmtPrice, fmtTime } from '../lib/format.js';
 import Avatar from './Avatar.jsx';
 import Icon from './Icon.jsx';
@@ -7,14 +6,16 @@ import RiskBadge from './RiskBadge.jsx';
 import { DriverBadges, Rating } from './DriverTrust.jsx';
 
 export default function RideCard({ ride }) {
-  const from = cityByCode(ride.from);
-  const to = cityByCode(ride.to);
+  const from = ride.fromArea;
+  const to = ride.toArea;
+  const away = ride.match && ride.match.fromKm >= 1 ? `${Math.round(ride.match.fromKm)} km from your place` : '';
   return (
     <Link to={`/ride/${encodeURIComponent(ride.id)}`} className={`ride-card edge-${ride.risk.band.key}`}>
       <div className="rc-route">
         <div className="rc-point">
           <strong>{fmtTime(ride.depart)}</strong>
           <span>{from.name}</span>
+          {away && <small className="muted">{away}</small>}
         </div>
         <div className="rc-line" aria-hidden="true">
           <span>{fmtDuration(ride.durationMin)}</span>
