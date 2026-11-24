@@ -1,2 +1,0 @@
-{% autoescape off %}Your VConnects profile has been approved
-{% endautoescape %}
