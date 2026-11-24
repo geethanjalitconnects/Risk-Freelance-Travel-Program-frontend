@@ -1,0 +1,10 @@
+{% autoescape off %}Hi {{ name }},
+
+We couldn't approve your driver verification.
+
+Reason: {{ reason }}
+
+Please fix this and submit your documents again: {{ link }}
+
+VConnects Travel
+{% endautoescape %}

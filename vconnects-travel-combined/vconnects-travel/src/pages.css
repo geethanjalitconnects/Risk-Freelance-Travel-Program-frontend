@@ -1,0 +1,130 @@
+/* Styles for the information pages and the dashboard. */
+.info-page .lead { margin: 10px 0 8px; }
+.info-page .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.narrow { max-width: 760px; }
+.prose p { margin: 0 0 14px; color: var(--muted); }
+.prose p:last-child { margin-bottom: 0; }
+.prose h3 { margin: 18px 0 6px; }
+.prose section:first-child h3 { margin-top: 0; }
+.steps-list { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
+.steps-list .step { display: flex; gap: 16px; align-items: flex-start; }
+.steps-list h3 { margin: 0 0 4px; }
+.step-num { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--grad); color: #fff; display: grid; place-items: center; font-weight: 800; }
+.check-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.check-list li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: 0.93rem; }
+.check-list svg { flex: none; margin-top: 3px; color: var(--teal); }
+.helplines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+.helpline { display: flex; flex-direction: column; gap: 6px; padding: 18px; border-radius: var(--radius); border: 1px solid var(--line); background: #fff; text-decoration: none; color: var(--ink); }
+.helpline:hover { border-color: var(--cyan-2); box-shadow: var(--shadow); }
+.helpline strong { font-size: 1.6rem; }
+.faq { display: grid; gap: 10px; margin-top: 22px; }
+.faq-item { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 0 18px; }
+.faq-item summary { cursor: pointer; padding: 16px 0; font-weight: 700; }
+.faq-item[open] summary { color: var(--brand-2); }
+.faq-item p { margin: 0 0 16px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
+.stat { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 4px; }
+.stat strong { font-size: 1.8rem; }
+.stat span { color: var(--muted); font-size: 0.85rem; }
+.dash-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.dash-row h3 { margin: 0 0 4px; }
+.dash-row p { margin: 0; }
+@media (max-width: 860px) {
+  .helplines, .stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .helplines, .stats { grid-template-columns: 1fr; }
+}
+@media (min-width: 861px) {
+  .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; }
+}
+
+/* Driver verification status banner (Dashboard, Driver verification page) */
+.vbanner { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px; margin: 0 0 16px; border: 1px solid var(--line); background: var(--tint); }
+.vbanner > svg { flex: none; }
+.vb-text { flex: 1; display: grid; gap: 2px; }
+.vb-reason { font-size: 0.9rem; white-space: pre-line; }
+.vb-ok { background: var(--low-bg); border-color: #bfe3c9; color: var(--low); }
+.vb-ok .vb-text { color: var(--ink); }
+.vb-info { color: var(--brand-2); }
+.vb-info .vb-text { color: var(--ink); }
+.vb-warn { background: var(--elevated-bg); border-color: #f6c7a5; color: var(--elevated); }
+.vb-warn .vb-text { color: var(--ink); }
+@media (max-width: 560px) { .vbanner { flex-wrap: wrap; } .vbanner .btn { width: 100%; } }
+
+/* Per-document review results and single re-upload */
+.doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.doc-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.doc-row.doc-bad { border-color: #f3b4b4; background: #fff8f8; }
+.doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.doc-chip { font-size: 0.75rem; font-weight: 800; padding: 2px 9px; border-radius: 99px; background: var(--cream-2); color: var(--muted); }
+.dc-pending { background: var(--tint); color: var(--brand-2); }
+.dc-approved { background: var(--low-bg); color: var(--low); }
+.dc-rejected { background: var(--high-bg); color: var(--high); }
+.doc-reason { flex-basis: 100%; font-size: 0.88rem; color: var(--high); }
+.doc-upload { flex-basis: 100%; display: grid; gap: 8px; }
+.row-inline { display: flex; gap: 8px; flex-wrap: wrap; }
+.pre-line { white-space: pre-line; }
+
+/* ---- Swipe to confirm (complete a ride, withdraw) ---- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.swipe-wrap { display: grid; gap: 4px; }
+.swipe { position: relative; height: 60px; border-radius: 999px; background: var(--tint); border: 1.5px solid var(--line); overflow: hidden; user-select: none; -webkit-user-select: none; }
+.swipe-fill { position: absolute; inset: 0 auto 0 0; background: rgba(94, 234, 212, 0.35); border-radius: 999px; transition: width 0.25s ease; pointer-events: none; }
+.swipe-label { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 64px; font-weight: 800; color: var(--brand-2); font-size: 0.95rem; text-align: center; pointer-events: none; }
+.swipe-handle { position: absolute; top: 3px; left: 3px; width: 52px; height: 52px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--grad-btn); color: #fff; box-shadow: 0 6px 16px rgba(11, 124, 156, 0.3); cursor: grab; touch-action: none; transition: transform 0.25s ease; }
+.swipe-handle:active { cursor: grabbing; }
+.swipe-handle:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.swipe-handle:disabled { cursor: default; }
+.swipe-busy .swipe-label { color: var(--muted); }
+.swipe-done { background: var(--low-bg); border-color: #bfe3c9; }
+.swipe-done .swipe-fill { background: transparent; }
+.swipe-done .swipe-label { color: var(--low); }
+.swipe-done .swipe-handle { background: var(--low); }
+.swipe-disabled { opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) { .swipe-handle, .swipe-fill { transition: none; } }
+
+/* ---- Ride completion ---- */
+.completion { display: grid; gap: 10px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.completion h4 { margin: 0; }
+.confirm-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.92rem; }
+.confirm-steps li { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+.confirm-steps li.ok { color: var(--low); font-weight: 700; }
+.confirm-steps .cp-mark { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; flex: none; }
+.confirm-steps li.ok .cp-mark { background: var(--low-bg); border-color: var(--low); }
+.ride-complete .contacts li { gap: 10px; flex-wrap: wrap; }
+.pl-tags { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---- Payout details ---- */
+.payout-card { display: grid; gap: 12px; }
+.payout-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.payout-head > div { display: grid; gap: 2px; }
+.payout-kind { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.payout-dest { font-size: 1.25rem; letter-spacing: 0.02em; }
+.payout-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ---- Cancellation ---- */
+.breakdown { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; padding: 12px 14px; background: var(--tint); border-radius: 10px; font-size: 0.95rem; }
+.breakdown dt { color: var(--muted); }
+.breakdown dd { margin: 0; text-align: right; }
+.cancel-summary { margin: 0; }
+
+/* ---- Wallet ---- */
+.wallet-tabs { margin-bottom: 16px; }
+.wallet-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.wallet-stats .stat small { font-size: 0.78rem; }
+.stat-main { background: var(--grad-btn); color: #fff; border-color: transparent; }
+.stat-main span { color: rgba(255, 255, 255, 0.85); }
+.stat-owed strong { color: var(--danger); }
+.withdraw { gap: 10px; }
+.ledger { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ledger li { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.ledger li > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.ledger .muted { font-size: 0.85rem; }
+.lg-right { display: grid; gap: 4px; justify-items: end; flex: none; }
+.lg-amount { font-size: 1.05rem; white-space: nowrap; }
+.lg-credit .lg-amount { color: var(--low); }
+.lg-debit .lg-amount, .lg-withdrawal .lg-amount, .lg-reversal .lg-amount { color: var(--ink); }
+.lg-hold .lg-amount { color: var(--muted); }
+.lg-refund { font-size: 0.85rem; color: var(--brand-2); }
+.pager { justify-content: center; align-items: center; margin-top: 12px; }

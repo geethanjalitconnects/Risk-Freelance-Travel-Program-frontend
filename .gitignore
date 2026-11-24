@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+*.zip
+.venv/
+.venv313/
+__pycache__/
+*.pyc
+dev.sqlite3
+db.sqlite3
+backend/private_media/
+backend/media/
+node_modules/
+dist/
+.claude/settings.local.json

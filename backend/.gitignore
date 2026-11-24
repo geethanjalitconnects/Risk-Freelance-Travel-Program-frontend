@@ -1,0 +1,10 @@
+.venv/
+.venv313/
+__pycache__/
+*.pyc
+.env
+*.sqlite3
+staticfiles/
+.coverage
+htmlcov/
+private_media/

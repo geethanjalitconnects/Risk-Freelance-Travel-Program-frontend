@@ -1,0 +1,12 @@
+{% autoescape off %}Hi {{ name }},
+
+Some of your driver verification documents need to be uploaded again.
+
+Reason: {{ reason }}
+
+Re-upload them here: {{ link }}
+
+You can post rides once your documents are approved.
+
+VConnects Travel
+{% endautoescape %}

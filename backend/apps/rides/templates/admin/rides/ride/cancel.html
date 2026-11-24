@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:rides_ride_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; Cancel rides
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>Cancel {{ rides|length }} ride{{ rides|length|pluralize }}. This also cancels
+    <strong>{{ open_bookings }} open booking{{ open_bookings|pluralize }}</strong>, and each passenger gets a line in their trip log.</p>
+  <ul>
+    {% for r in rides %}
+      <li>{{ r.origin.name }} → {{ r.destination.name }} · {{ r.depart }} · {{ r.driver.name|default:r.driver.phone }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="cancel_selected">
+    {% for id in selected_ids %}<input type="hidden" name="_selected_action" value="{{ id }}">{% endfor %}
+    <input type="hidden" name="confirm" value="yes">
+    <fieldset class="module aligned">
+      <div class="form-row">
+        {{ form.reason.errors }}
+        {{ form.reason.label_tag }} {{ form.reason }}
+        <div class="help">{{ form.reason.help_text }}</div>
+      </div>
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" class="default" value="Cancel rides">
+      <a href="{% url 'admin:rides_ride_changelist' %}" class="button cancel-link">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
