@@ -9,20 +9,35 @@ class Coast(models.TextChoices):
 
 
 class City(models.Model):
-    code = models.CharField(max_length=3, primary_key=True)
-    name = models.CharField(max_length=80, unique=True)
+    """An area (taluk) rides start or end in. Created automatically the first time someone picks a
+    place in it (see apps.places.resolve); editable in the admin. No coordinates are stored here:
+    Google's coordinates may only be cached for 30 days (apps.places.models.PlaceCache).
+
+    The model keeps its historical name "City" so rides, bookings and payments keep their links.
+    """
+
+    code = models.CharField(max_length=16, primary_key=True)
+    name = models.CharField(max_length=80, help_text="Taluk, or the locality when Google gives no taluk")
+    district = models.CharField(max_length=80, blank=True)
     state = models.CharField(max_length=80)
-    lat = models.FloatField()
-    lng = models.FloatField()
-    coast = models.CharField(max_length=6, choices=Coast.choices)
+    coast = models.CharField(max_length=6, choices=Coast.choices, help_text="Drives the seasonal weather risk")
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     class Meta:
-        verbose_name_plural = "cities"
-        ordering = ["name"]
+        verbose_name = "area"
+        verbose_name_plural = "areas"
+        ordering = ["state", "district", "name"]
+        constraints = [models.UniqueConstraint(fields=["state", "district", "name"], name="uniq_area_name")]
 
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        return ", ".join(p for p in (self.name, self.district, self.state) if p)
+
+    @property
+    def region(self) -> str:
+        """ "District, State" (the district is left out when it repeats the name)."""
+        parts = [self.district] if self.district and self.district != self.name else []
+        return ", ".join(parts + [self.state])
 
 
 class MeetingPoint(models.Model):

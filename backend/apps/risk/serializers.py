@@ -1,22 +1,25 @@
 from rest_framework import serializers
 
-from apps.geo.fields import CityField
+from apps.places.fields import PlaceField
 from common.serializers import FromFieldMixin
 
 from .samples import SAMPLE_DRIVERS, SAMPLE_VEHICLES
 from .scoring import VEHICLE_FEATURES
 
+SAME_AREA = "Pick a destination in a different area from the start."
+
 
 class TripInputSerializer(FromFieldMixin, serializers.Serializer):
-    """``from`` / ``to`` (city code or name) and ``depart`` ("YYYY-MM-DDTHH:mm", local time)."""
+    """``from`` / ``to`` (Google place IDs picked from the suggestions) and ``depart``
+    ("YYYY-MM-DDTHH:mm", local time)."""
 
-    origin = CityField()
-    to = CityField()
+    origin = PlaceField()
+    to = PlaceField()
     depart = serializers.DateTimeField()
 
     def validate(self, attrs):
-        if attrs["from"].code == attrs["to"].code:
-            raise serializers.ValidationError({"to": "Destination must differ from the start."})
+        if attrs["from"].area == attrs["to"].area:
+            raise serializers.ValidationError({"to": SAME_AREA})
         return attrs
 
 

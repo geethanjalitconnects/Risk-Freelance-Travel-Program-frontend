@@ -9,6 +9,7 @@ from django.core import mail
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 
+from apps.geo.testing import place_id
 from apps.accounts.models import User
 from apps.verification.models import DocumentStatus, DriverVerification, EmailNotification, EmailStatus, VerificationStatus
 from apps.verification.tests.base import JPEG, VerificationTestBase, tomorrow, upload
@@ -286,7 +287,7 @@ class PublishGateTests(AdminClientMixin, VerificationTestBase):
 
     def ride_body(self):
         return {
-            "from": "MAA", "to": "BLR", "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": 5600,
+            "from": place_id("MAA"), "to": place_id("BLR"), "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": 5600,
             "seatsTotal": 3, "vehicle": {"model": "Hyundai Creta", "year": 2023, "features": []},
         }
 

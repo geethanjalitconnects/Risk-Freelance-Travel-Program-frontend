@@ -15,7 +15,7 @@ from apps.accounts.models import User
 from apps.bookings import services as booking_services
 from apps.bookings.models import Booking, BookingStatus, Cancellation
 from apps.geo.models import City
-from apps.geo.seed import seed_geo
+from apps.geo.testing import seed_geo
 from apps.payments import ledger, money
 from apps.payments.models import (
     EarningEntry,

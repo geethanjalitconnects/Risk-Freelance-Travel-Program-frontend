@@ -10,10 +10,14 @@ class MeetingPointInline(admin.TabularInline):
 
 
 @admin.register(City)
-class CityAdmin(admin.ModelAdmin):
-    list_display = ["code", "name", "state", "coast", "is_active"]
-    list_filter = ["coast", "state", "is_active"]
-    search_fields = ["code", "name"]
+class AreaAdmin(admin.ModelAdmin):
+    """Areas (taluks) are created when someone first picks a place in them. Add meeting points
+    here; they appear in the pickup / drop-off dropdowns when publishing."""
+
+    list_display = ["name", "district", "state", "code", "coast", "is_active", "created_at"]
+    list_filter = ["state", "coast", "is_active"]
+    search_fields = ["code", "name", "district", "state"]
+    readonly_fields = ["code", "created_at"]
     inlines = [MeetingPointInline]
 
 
@@ -25,7 +29,7 @@ class RouteProfileAdmin(admin.ModelAdmin):
     readonly_fields = ["km_source", "km_updated_at", "updated_at"]
 
     def save_model(self, request, obj, form, change):
-        # A distance typed in by an admin is kept by `fetch_route_distances` from now on.
+        # Marks the distance as set by an admin.
         if "km" in form.changed_data:
             obj.km_source = DistanceSource.MANUAL
             obj.km_updated_at = timezone.now()

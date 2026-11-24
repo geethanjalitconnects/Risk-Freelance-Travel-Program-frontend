@@ -253,7 +253,7 @@ templates are approved.
 - **Production settings** (`prod.py`):
   - HTTPS redirect, HSTS (1 year) and secure cookies
   - `X-Frame-Options: DENY`, `nosniff` and a referrer policy
-  - startup refuses a missing secret key, SMS backend or encryption key
+  - startup refuses a missing secret key or encryption key (SMS is not used)
 - **Deactivated accounts:** their login tokens are rejected (`CHECK_USER_IS_ACTIVE`).
 - **Uploads:** files are kept in memory only, so no unencrypted temporary files are written to
   disk.

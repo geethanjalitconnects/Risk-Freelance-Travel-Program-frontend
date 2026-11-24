@@ -52,8 +52,8 @@ class RideSearchView(APIView):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter("from", OpenApiTypes.STR, required=True, description="City code or name"),
-            OpenApiParameter("to", OpenApiTypes.STR, required=True, description="City code or name"),
+            OpenApiParameter("from", OpenApiTypes.STR, required=True, description="Google place ID (picked)"),
+            OpenApiParameter("to", OpenApiTypes.STR, required=True, description="Google place ID (picked)"),
             OpenApiParameter("date", OpenApiTypes.DATE, required=True),
             OpenApiParameter("seats", OpenApiTypes.INT, description="1-4, default 1"),
             OpenApiParameter("sort", OpenApiTypes.STR, enum=list(RideSearchSerializer.SORTS)),
@@ -73,15 +73,11 @@ class RideSearchView(APIView):
         candidates = (
             Ride.objects.for_display()
             .listed()  # approved, active drivers only
-            .filter(
-                origin=p["from"],
-                destination=p["to"],
-                depart__date=p["date"],
-                depart__gt=timezone.now() + SEARCH_CUTOFF,
-            )
+            .filter(depart__date=p["date"], depart__gt=timezone.now() + SEARCH_CUTOFF)
             .order_by("depart")
         )
-        rides = [r for r in candidates if r.seats_total - r.booked_seats >= p["seats"]]
+        candidates = [r for r in candidates if r.seats_total - r.booked_seats >= p["seats"]]
+        rides = services.near(candidates, p["from"], p["to"])
         services.prepare(rides, request.user)
 
         # "verified" is accepted for compatibility; every listed ride already has an approved driver.
@@ -95,6 +91,28 @@ class RideSearchView(APIView):
         rides.sort(key=SORT_KEYS[p["sort"]])  # stable, so ties stay in departure order
 
         return Response(RideSerializer(rides, many=True, context={"request": request}).data)
+
+
+class PopularRoutesView(APIView):
+    """Up to 6 routes with the most bookable rides in the next 30 days (Home page chips).
+
+    Each end carries the area and a Google place ID from one of those rides, so a chip opens the
+    same nearby search as picking the places by hand. Cached for 10 minutes.
+    """
+
+    permission_classes = [AllowAny]
+    LIMIT = 6
+    CACHE_KEY = "rides:popular"
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from django.core.cache import cache
+
+        data = cache.get(self.CACHE_KEY)
+        if data is None:
+            data = services.popular_routes(self.LIMIT)
+            cache.set(self.CACHE_KEY, data, 600)
+        return Response(data)
 
 
 class RideCreateView(APIView):

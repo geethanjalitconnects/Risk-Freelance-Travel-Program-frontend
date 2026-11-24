@@ -13,7 +13,7 @@ from apps.accounts.models import TrustedContact, User
 from apps.accounts.sms import LocmemSMSBackend
 from apps.bookings.models import Booking, BookingStatus
 from apps.geo.models import City
-from apps.geo.seed import seed_geo
+from apps.geo.testing import seed_geo
 from apps.rides.models import Ride, RideStatus, TravelWith
 from apps.verification.testing import approve_driver
 

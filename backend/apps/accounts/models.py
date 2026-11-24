@@ -5,6 +5,8 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 # Same rule the frontend applies to trusted-contact phones: optional +, then 8-15 digits/spaces.
@@ -54,6 +56,13 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+    def create_email_user(self, email, **extra):
+        """An app user who signs in with an emailed code (no password, phone added later)."""
+        user = self.model(phone=None, email=normalize_email(email), **extra)
+        user.set_unusable_password()
+        user.save(using=self._db)
+        return user
+
     def create_admin(self, username, password, **extra):
         """A dashboard admin who signs in with username + password and has no phone."""
         if not username or not password:
@@ -80,7 +89,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=16, unique=True, null=True, blank=True)
     username = models.CharField(max_length=150, unique=True, null=True, blank=True)
     name = models.CharField(max_length=100, blank=True)
-    # Where verification decisions are emailed. Required when submitting driver documents.
+    # Sign-in address (a code is emailed to it) and where verification decisions are emailed.
+    # Unique (case-insensitive) when set; stored lower-case.
     email = models.EmailField(blank=True)
     gender = models.CharField(max_length=1, choices=Gender.choices, blank=True, default=Gender.UNSPECIFIED)
 
@@ -112,9 +122,12 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         ordering = ["-date_joined"]
+        constraints = [
+            models.UniqueConstraint(Lower("email"), condition=~Q(email=""), name="uniq_user_email_ci"),
+        ]
 
     def __str__(self):
-        return f"{self.name or 'Unnamed'} ({self.phone or self.username})"
+        return f"{self.name or 'Unnamed'} ({self.email or self.phone or self.username})"
 
     @property
     def first_name(self):
@@ -147,6 +160,24 @@ class PhoneOTP(models.Model):
         return self.consumed_at is None and self.expires_at > timezone.now()
 
 
+class EmailOTP(models.Model):
+    """A one-time sign-in code sent by email. Only a keyed hash of the code is stored."""
+
+    email = models.EmailField(db_index=True)
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "email OTP"
+
+    def __str__(self):
+        return f"OTP for {self.email} at {self.created_at:%Y-%m-%d %H:%M}"
+
+
 class TrustedContact(models.Model):
     """Someone alerted on a missed check-in or SOS. Up to 5 per user."""
 
@@ -162,3 +193,7 @@ class TrustedContact(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.relation or 'contact'}) for {self.user}"
+
+
+def normalize_email(raw: str) -> str:
+    return (raw or "").strip().lower()

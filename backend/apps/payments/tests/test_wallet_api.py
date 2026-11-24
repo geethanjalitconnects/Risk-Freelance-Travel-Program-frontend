@@ -14,7 +14,7 @@ from apps.accounts.models import User
 from apps.bookings import services as booking_services
 from apps.bookings.models import Booking
 from apps.geo.models import City
-from apps.geo.seed import seed_geo
+from apps.geo.testing import seed_geo
 from apps.payments import ledger
 from apps.payments.models import EarningsAccount, FinancialAuditLog, Payment, PayoutAccount, Refund, Transfer, Withdrawal
 from apps.rides.models import Ride

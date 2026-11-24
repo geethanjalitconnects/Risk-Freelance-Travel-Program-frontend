@@ -43,6 +43,67 @@ def driver_profile(user, stats: DriverStats) -> DriverProfile:
     )
 
 
+def popular_routes(limit: int = 6) -> list:
+    """[{from: {placeId, area}, to: {...}, rides}] for the busiest upcoming routes (by area pair)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from .serializers import area_payload
+
+    now = timezone.now()
+    upcoming = (
+        Ride.objects.listed()
+        .filter(depart__gt=now + timedelta(minutes=30), depart__lt=now + timedelta(days=30))
+        .exclude(origin_place_id="")
+        .exclude(destination_place_id="")
+        .select_related("origin", "destination")
+        .order_by("-depart")
+    )
+    routes = {}
+    for ride in upcoming:
+        key = (ride.origin_id, ride.destination_id)
+        if key not in routes:
+            routes[key] = {
+                "from": {"place_id": ride.origin_place_id, "area": area_payload(ride.origin)},
+                "to": {"place_id": ride.destination_place_id, "area": area_payload(ride.destination)},
+                "rides": 0,
+            }
+        routes[key]["rides"] += 1
+    return sorted(routes.values(), key=lambda r: -r["rides"])[:limit]
+
+
+def near(rides: list, origin, destination) -> list:
+    """Rides whose start is near ``origin`` and whose end is near ``destination`` (picked places).
+
+    "Near" = within PLACES_SEARCH_RADIUS_KM (straight line) using the cached coordinates of the
+    ride's places, or the same area (taluk) when a ride's coordinates aren't cached. Sets
+    ``ride._match = {"from_km", "to_km"}`` and keeps the closest matches first within a departure.
+    """
+    from django.conf import settings
+
+    from apps.geo.routing import haversine_km
+    from apps.places.resolve import cached_points
+
+    radius = settings.PLACES_SEARCH_RADIUS_KM
+    points = cached_points(p for r in rides for p in (r.origin_place_id, r.destination_place_id) if p)
+
+    def distance(place_id, area, picked):
+        if place_id in points:
+            lat, lng = points[place_id]
+            return haversine_km(lat, lng, picked.lat, picked.lng)
+        return 0.0 if area == picked.area else None
+
+    out = []
+    for ride in rides:
+        a = distance(ride.origin_place_id, ride.origin, origin)
+        b = distance(ride.destination_place_id, ride.destination, destination)
+        if a is not None and b is not None and a <= radius and b <= radius:
+            ride._match = {"from_km": round(a, 1), "to_km": round(b, 1)}
+            out.append(ride)
+    return out
+
+
 def prepare(rides: list, viewer=None) -> list:
     """Attach everything RideSerializer needs, computed in a fixed number of queries.
 
@@ -76,9 +137,9 @@ def prepare(rides: list, viewer=None) -> list:
 
     routes = {}
     for ride in rides:
-        key = (ride.origin_id, ride.destination_id)
+        key = (ride.origin_id, ride.destination_id, ride.km)
         if key not in routes:
-            routes[key] = risk_services.route_between(ride.origin, ride.destination)
+            routes[key] = risk_services.route_between(ride.origin, ride.destination, ride.km)
 
         ride._stats = stats[ride.driver_id]
         ride._seats_left = max(0, ride.seats_total - ride.booked_seats)

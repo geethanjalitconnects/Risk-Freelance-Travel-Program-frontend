@@ -14,12 +14,12 @@ from . import otp
 from .models import TrustedContact, User
 from .serializers import (
     AuthResultSerializer,
+    EmailOTPSentSerializer,
+    SendEmailOTPSerializer,
+    VerifyEmailOTPSerializer,
     MeSerializer,
     MeUpdateSerializer,
-    OTPSentSerializer,
-    SendOTPSerializer,
     TrustedContactSerializer,
-    VerifyOTPSerializer,
 )
 
 
@@ -43,11 +43,25 @@ def _me(request, user=None, status_code=status.HTTP_200_OK):
 # ---------------------------------------------------------------- auth
 
 
-class SendOTPView(APIView):
-    """Step 1 of sign-in: text a 6-digit code to the phone number.
+def _signed_in(request, user, is_new):
+    if not user.is_active:
+        return Response({"detail": "This account has been disabled.", "code": "inactive"}, status=status.HTTP_403_FORBIDDEN)
+    update_last_login(None, user)
+    refresh = RefreshToken.for_user(user)
+    user = User.objects.prefetch_related("contacts").get(pk=user.pk)
+    return Response({
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "is_new_user": is_new,
+        "user": MeSerializer(user, context={"request": request}).data,
+    })
 
-    The same flow signs up new numbers, so the response never says whether an account exists.
-    With DEBUG on, the code is printed to the server console instead of being sent.
+
+class SendEmailOTPView(APIView):
+    """Step 1 of sign-in: email a 6-digit code.
+
+    The same flow signs up new addresses, so the response never says whether an account exists.
+    In development (console email backend) the email, with the code, is printed in the server console.
     """
 
     permission_classes = [AllowAny]
@@ -55,24 +69,24 @@ class SendOTPView(APIView):
     throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
     throttle_scope = "otp_send"
 
-    @extend_schema(request=SendOTPSerializer, responses={200: OTPSentSerializer, 429: OpenApiTypes.OBJECT})
+    @extend_schema(request=SendEmailOTPSerializer, responses={200: EmailOTPSentSerializer, 429: OpenApiTypes.OBJECT})
     def post(self, request):
-        s = SendOTPSerializer(data=request.data)
+        s = SendEmailOTPSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        phone = s.validated_data["phone"]
+        email = s.validated_data["email"]
         try:
-            issued = otp.issue(phone)
+            issued = otp.issue_email(email)
         except otp.OTPError as e:
-            code = status.HTTP_503_SERVICE_UNAVAILABLE if e.code == "sms_failed" else status.HTTP_429_TOO_MANY_REQUESTS
+            code = status.HTTP_503_SERVICE_UNAVAILABLE if e.code == "email_failed" else status.HTTP_429_TOO_MANY_REQUESTS
             return _otp_error(e, code)
-        return Response({"sent": True, "phone": phone, "expires_in": issued.expires_in, "resend_in": issued.resend_in})
+        return Response({"sent": True, "email": email, "expires_in": issued.expires_in, "resend_in": issued.resend_in})
 
 
-class VerifyOTPView(APIView):
-    """Step 2 of sign-in: check the code and return JWT tokens.
+class VerifyEmailOTPView(APIView):
+    """Step 2 of sign-in: check the emailed code and return JWT tokens.
 
-    Creates the account on first sign-in (``isNewUser: true``). New users should then send their
-    name and gender with PATCH /me; ``user.profileComplete`` stays false until a name is set.
+    Creates the account on first sign-in (``isNewUser: true``). New users then send their name,
+    gender and mobile number with PATCH /me; ``user.profileComplete`` stays false until then.
     """
 
     permission_classes = [AllowAny]
@@ -80,35 +94,21 @@ class VerifyOTPView(APIView):
     throttle_classes = [AnonRateThrottle, ScopedRateThrottle]
     throttle_scope = "otp_verify"
 
-    @extend_schema(request=VerifyOTPSerializer, responses={200: AuthResultSerializer, 400: OpenApiTypes.OBJECT})
+    @extend_schema(request=VerifyEmailOTPSerializer, responses={200: AuthResultSerializer, 400: OpenApiTypes.OBJECT})
     def post(self, request):
-        s = VerifyOTPSerializer(data=request.data)
+        s = VerifyEmailOTPSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        phone, code = s.validated_data["phone"], s.validated_data["code"]
+        email, code = s.validated_data["email"], s.validated_data["code"]
         try:
-            otp.verify(phone, code)
+            otp.verify_email(email, code)
         except otp.OTPError as e:
             return _otp_error(e, status.HTTP_400_BAD_REQUEST)
-
         with transaction.atomic():
-            user = User.objects.filter(phone=phone).first()
+            user = User.objects.filter(email__iexact=email).first()
             is_new = user is None
             if is_new:
-                user = User.objects.create_user(phone)
-        if not user.is_active:
-            return Response({"detail": "This account has been disabled.", "code": "inactive"}, status=status.HTTP_403_FORBIDDEN)
-        update_last_login(None, user)
-
-        refresh = RefreshToken.for_user(user)
-        user = User.objects.prefetch_related("contacts").get(pk=user.pk)
-        return Response(
-            {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "is_new_user": is_new,
-                "user": MeSerializer(user, context={"request": request}).data,
-            }
-        )
+                user = User.objects.create_email_user(email)
+        return _signed_in(request, user, is_new)
 
 
 # ---------------------------------------------------------------- me

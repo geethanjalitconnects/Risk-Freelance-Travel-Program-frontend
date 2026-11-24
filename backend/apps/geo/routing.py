@@ -1,7 +1,8 @@
 """Distance and route-profile maths, ported from frontend src/data/cities.js and src/lib/risk.js.
 
-``compute_route_profile`` is only used to seed the RouteProfile table. At runtime the table is the
-source of truth, so real incident data can replace the seeded values without code changes.
+A ride's km is estimated when it is published (straight line x 1.28 between the picked places).
+Route risk inputs come from a RouteProfile row when an admin has entered one for the two areas,
+otherwise from the deterministic default below.
 """
 import math
 
@@ -26,11 +27,14 @@ def route_key(code_a: str, code_b: str) -> str:
     return "-".join(sorted([code_a, code_b]))
 
 
-def compute_route_profile(a, b) -> dict:
-    """Deterministic demo profile; identical to routeProfile() in risk.js."""
+def compute_route_profile(a, b, km=None) -> dict:
+    """Deterministic default profile; identical to routeProfile() in risk.js.
+
+    ``a``/``b`` need a ``code``; they also need lat/lng when ``km`` isn't given.
+    """
     h = fnv1a_32(route_key(a.code, b.code))
     return {
-        "km": road_km(a, b),
+        "km": km if km is not None else road_km(a, b),
         "incident_index": js_round((2 + (h % 700) / 100) * 10) / 10,  # 2.0 - 9.0
         "highway_share": 55 + ((h >> 3) % 40),
         "ghat_sections": (h >> 5) % 3,

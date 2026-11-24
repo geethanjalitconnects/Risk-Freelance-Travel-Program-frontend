@@ -10,7 +10,7 @@ from django.test import TestCase
 from djangorestframework_camel_case.util import camelize
 
 from apps.geo.models import City, RouteProfile
-from apps.geo.seed import seed_geo
+from apps.geo.testing import seed_geo
 from apps.risk.scoring import DriverProfile, Route, VehicleProfile, score_trip
 from apps.risk.services import route_between
 
@@ -60,7 +60,7 @@ class ScoreParityTests(TestCase):
             origin, dest = self.cities[inp["from"]], self.cities[inp["to"]]
             key = (inp["from"], inp["to"])
             if key not in routes:
-                routes[key] = route_between(origin, dest)
+                routes[key] = route_between(origin, dest, RouteProfile.objects.between(*key).get().km)
             got = score_trip(
                 route=routes[key],
                 origin=origin,

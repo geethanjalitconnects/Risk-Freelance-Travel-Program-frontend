@@ -91,7 +91,9 @@ class RiskPreviewView(APIView):
         vehicle = VehicleProfile(year=v.get("year"), features=v.get("features", [])) if v is not None else None
         route = services.route_between(data["from"], data["to"])
         fare = quote(route.km)
-        risk = services.score(data["from"], data["to"], data["depart"], services.publishing_driver(request.user), vehicle)
+        risk = services.score(
+            data["from"], data["to"], data["depart"], services.publishing_driver(request.user), vehicle, route=route
+        )
 
         return Response(
             {

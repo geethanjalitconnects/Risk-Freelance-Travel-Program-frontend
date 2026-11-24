@@ -21,6 +21,7 @@ api_v1 = [
     path("", include("apps.rides.urls")),
     path("", include("apps.bookings.urls")),
     path("", include("apps.payments.urls")),
+    path("", include("apps.places.urls")),
 ]
 
 urlpatterns = [

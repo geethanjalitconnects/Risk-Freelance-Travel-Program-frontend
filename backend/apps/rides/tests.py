@@ -9,7 +9,7 @@ from apps.accounts.models import User
 from apps.bookings.models import Booking, BookingStatus
 from apps.fares.services import fare_range
 from apps.geo.models import City, RouteProfile
-from apps.geo.seed import seed_geo
+from apps.geo.testing import place_id, seed_geo
 from apps.rides.models import Ride, RideStatus, TravelWith
 from apps.rides.policies import gender_lock_reason
 from apps.verification.testing import approve_driver
@@ -50,8 +50,8 @@ class RideTestBase(APITestCase):
 
     def payload(self, **over):
         body = {
-            "from": "Chennai",
-            "to": "Bengaluru",
+            "from": place_id("MAA"),
+            "to": place_id("BLR"),
             "depart": fmt(local()),
             "price": self.fares().min_fare,
             "seatsTotal": 3,
@@ -87,7 +87,7 @@ class RideTestBase(APITestCase):
         )
 
     def search(self, **params):
-        q = {"from": "Chennai", "to": "Bengaluru", "date": local().date().isoformat(), **params}
+        q = {"from": place_id("MAA"), "to": place_id("BLR"), "date": local().date().isoformat(), **params}
         return self.client.get(reverse("ride-search"), q)
 
 
@@ -132,7 +132,7 @@ class PublishTests(RideTestBase):
     def test_publish_validation_matches_publish_page(self):
         self.auth(self.female)
         cases = {
-            "to": self.payload(to="Chennai"),
+            "to": self.payload(to=place_id("MAA")),
             "depart": self.payload(depart=fmt(timezone.now() - timedelta(hours=1))),
             "price": self.payload(price=40),
             "vehicle": self.payload(vehicle={"model": "Swift", "year": 1990}),
@@ -189,13 +189,15 @@ class TravelWithPublishTests(RideTestBase):
 
 
 class SearchTests(RideTestBase):
-    def test_finds_rides_by_city_name_or_code(self):
+    def test_finds_rides_from_picked_places(self):
         ride = self.make_ride()
         self.auth(None)
-        for params in ({}, {"from": "MAA", "to": "blr"}):
-            r = self.search(**params)
-            self.assertEqual(r.status_code, 200, r.content)
-            self.assertEqual([x["id"] for x in r.json()], [str(ride.id)])
+        r = self.search()
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual([x["id"] for x in r.json()], [str(ride.id)])
+        self.assertEqual(r.json()[0]["fromArea"]["name"], "Chennai")
+        # Another destination finds nothing.
+        self.assertEqual(self.search(to=place_id("MYS")).json(), [])
 
     def test_hides_cancelled_full_and_soon_departing_rides(self):
         self.make_ride(status=RideStatus.CANCELLED)
@@ -243,7 +245,7 @@ class SearchTests(RideTestBase):
         self.assertEqual(safest, sorted(safest))
 
     def test_bad_searches(self):
-        self.assertIn("to", self.search(to="Chennai").json())
+        self.assertIn("to", self.search(to=place_id("MAA")).json())
         self.assertIn("date", self.search(date=(timezone.localdate() - timedelta(days=1)).isoformat()).json())
         self.assertEqual(self.search(**{"from": "Nowhere"}).status_code, 400)
 
@@ -355,9 +357,11 @@ class EditTests(RideTestBase):
 
     def test_changing_city_resets_meeting_point(self):
         ride = self.make_ride()
-        r = self.patch(ride, {"to": "Mysuru"})  # the old fare is below the longer route's minimum
+        new_route = {"from": place_id("MAA"), "to": place_id("MYS")}
+        self.assertIn("from", self.patch(ride, {"to": place_id("MYS")}).json())  # both places together
+        r = self.patch(ride, new_route)  # the old fare is below the longer route's minimum
         self.assertIn("price", r.json())
-        r = self.patch(ride, {"to": "Mysuru", "price": self.fares("MAA", "MYS").min_fare})
+        r = self.patch(ride, {**new_route, "price": self.fares("MAA", "MYS").min_fare})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual((r.json()["to"], r.json()["dropoff"]), ("MYS", "Mysuru Central Bus Stand"))
         self.assertNotEqual(r.json()["km"], 370)
@@ -537,3 +541,21 @@ class PassengerContactPrivacyTests(RideTestBase):
             self.assertFalse(contact_visible(b, self.ride, now=arrive + timedelta(seconds=1)))
         b.status = BookingStatus.CANCELLED
         self.assertFalse(contact_visible(b, self.ride, now=arrive - timedelta(days=1)))
+
+
+class PopularRoutesTests(RideTestBase):
+    def test_busiest_upcoming_routes_with_place_ids(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        mys = City.objects.get(code="MYS")
+        for _ in range(2):
+            self.make_ride(origin_place_id=place_id("MAA"), destination_place_id=place_id("BLR"))
+        self.make_ride(destination=mys, origin_place_id=place_id("MAA"), destination_place_id=place_id("MYS"))
+        self.make_ride()  # no place IDs (not pickable): left out
+        self.make_ride(status=RideStatus.CANCELLED, origin_place_id=place_id("MAA"), destination_place_id=place_id("MYS"))
+        self.auth(None)
+        body = self.client.get(reverse("ride-popular")).json()
+        self.assertEqual([(r["from"]["area"]["name"], r["to"]["area"]["name"], r["rides"]) for r in body],
+                         [("Chennai", "Bengaluru", 2), ("Chennai", "Mysuru", 1)])
+        self.assertEqual(body[0]["from"]["placeId"], place_id("MAA"))

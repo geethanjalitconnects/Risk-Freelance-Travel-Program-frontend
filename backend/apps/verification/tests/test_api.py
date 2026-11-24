@@ -8,6 +8,7 @@ from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.geo.testing import place_id
 from apps.accounts.models import User
 from apps.geo.models import City
 from apps.rides.models import Ride
@@ -205,7 +206,7 @@ class RetentionTests(VerificationTestBase):
 class PublishingAndVisibilityTests(VerificationTestBase):
     def ride_body(self):
         return {
-            "from": "MAA", "to": "BLR", "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": 5600,
+            "from": place_id("MAA"), "to": place_id("BLR"), "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": 5600,
             "seatsTotal": 3, "vehicle": {"model": "Hyundai Creta", "year": 2023, "features": []},
         }
 
@@ -234,7 +235,7 @@ class PublishingAndVisibilityTests(VerificationTestBase):
         )
 
     def search_ids(self):
-        r = self.client.get(reverse("ride-search"), {"from": "MAA", "to": "BLR", "date": tomorrow().date().isoformat()})
+        r = self.client.get(reverse("ride-search"), {"from": place_id("MAA"), "to": place_id("BLR"), "date": tomorrow().date().isoformat()})
         return {x["id"] for x in r.json()}
 
     def test_badge_vehicle_number_and_revocation(self):

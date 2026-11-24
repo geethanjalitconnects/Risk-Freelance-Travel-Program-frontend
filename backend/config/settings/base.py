@@ -39,11 +39,13 @@ INSTALLED_APPS = [
     "apps.verification",
     "apps.adminpanel",
     "apps.payments",
+    "apps.places",
 ]
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -193,6 +195,10 @@ REST_FRAMEWORK = {
         "payout_account": env("THROTTLE_PAYOUT_ACCOUNT", default="10/hour"),
         # Withdrawal requests (the daily limit in PaymentSettings applies as well).
         "withdrawals": env("THROTTLE_WITHDRAWALS", default="10/hour"),
+        # Google Places proxy, per user / client IP (each call may be billed by Google).
+        "places_autocomplete": env("THROTTLE_PLACES_AUTOCOMPLETE", default="60/min"),
+        "places_details": env("THROTTLE_PLACES_DETAILS", default="20/min"),
+        "places_reverse": env("THROTTLE_PLACES_REVERSE", default="10/min"),
     },
 }
 
@@ -253,15 +259,14 @@ OTP_RESEND_SECONDS = env.int("OTP_RESEND_SECONDS", default=30)
 OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
 OTP_MAX_SENDS_PER_HOUR = env.int("OTP_MAX_SENDS_PER_HOUR", default=5)
 
-# Dotted path to an apps.accounts.sms.BaseSMSBackend subclass. Ignored while DEBUG is on:
-# then codes are printed to the console (apps.accounts.sms.ConsoleSMSBackend).
-SMS_BACKEND = env("SMS_BACKEND", default="")
+# SMS is not used: sign-in codes go by email. Any leftover SMS call is dropped
+# (apps.accounts.sms.DisabledSMSBackend); in DEBUG it is printed to the console.
 
 # Prefix of the live-trip link texted to trusted contacts (the share token is appended).
 TRIP_SHARE_BASE_URL = env("TRIP_SHARE_BASE_URL", default="https://vconnects.example/track")
 
 # Extra notifiers called when an admin cancels a ride (dotted paths to callables taking a list of
-# bookings). The trip-log entry is always written; add an SMS notifier here once templates exist.
+# bookings). The trip-log entry is always written.
 RIDE_CANCELLED_NOTIFIERS = env.list("RIDE_CANCELLED_NOTIFIERS", default=[])
 
 # ---- Driver verification documents ----
@@ -308,11 +313,6 @@ FILE_UPLOAD_HANDLERS = ["django.core.files.uploadhandler.MemoryFileUploadHandler
 FILE_UPLOAD_MAX_MEMORY_SIZE = 4 * DOCUMENT_MAX_BYTES + 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
-# ---- Road distances (OpenRouteService) ----
-# Used once by `manage.py fetch_route_distances`; results are stored in RouteProfile.km.
-ORS_API_KEY = env("ORS_API_KEY", default="")
-ORS_MATRIX_URL = env("ORS_MATRIX_URL", default="https://api.openrouteservice.org/v2/matrix/driving-car")
-ORS_TIMEOUT_SECONDS = env.int("ORS_TIMEOUT_SECONDS", default=20)
 
 # ---- CORS: the Vite dev server ----
 CORS_ALLOWED_ORIGINS = env.list(
@@ -326,3 +326,14 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
+
+# ---- Google Places (Autocomplete New + Place Details New), called only from the backend ----
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+PLACES_ENABLED = env.bool("PLACES_ENABLED", default=False) and not _TESTING  # off: city list only
+PLACES_PRIMARY_TYPES = env.list("PLACES_PRIMARY_TYPES", default=["(regions)"])
+PLACES_CACHE_SECONDS = env.int("PLACES_CACHE_SECONDS", default=600)  # repeated autocomplete queries
+# Google allows coordinates to be cached for 30 days at most; refresh_place_cache keeps them fresher.
+PLACES_COORDINATE_DAYS = min(29, env.int("PLACES_COORDINATE_DAYS", default=29))
+# Search finds rides starting / ending within this distance of the picked places.
+PLACES_SEARCH_RADIUS_KM = env.int("PLACES_SEARCH_RADIUS_KM", default=25)
+PLACES_TIMEOUT_SECONDS = env.int("PLACES_TIMEOUT_SECONDS", default=5)

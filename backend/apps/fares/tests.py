@@ -16,7 +16,7 @@ from apps.accounts.models import User
 from apps.fares.models import FareSettings
 from apps.fares.services import fare_range
 from apps.geo.models import City, DistanceSource, RouteProfile
-from apps.geo.seed import seed_geo
+from apps.geo.testing import place_id, seed_geo
 from apps.rides.models import Ride
 from apps.verification.testing import approve_driver
 
@@ -109,16 +109,16 @@ class FareEnforcementTests(APITestCase):
 
     def publish(self, price):
         return self.client.post("/api/v1/rides", {
-            "from": "MAA", "to": "BLR", "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": price, "seatsTotal": 3,
+            "from": place_id("MAA"), "to": place_id("BLR"), "depart": tomorrow().strftime("%Y-%m-%dT%H:%M"), "price": price, "seatsTotal": 3,
             "vehicle": {"model": "Creta", "year": 2023, "features": []},
         }, format="json")
 
     def test_quote_endpoint(self):
-        r = self.client.get("/api/v1/fares/quote", {"from": "Chennai", "to": "BLR"})
+        r = self.client.get("/api/v1/fares/quote", {"from": place_id("MAA"), "to": place_id("BLR")})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {"km": self.km, "minFare": self.range.min_fare, "maxFare": self.range.max_fare,
                                     "ratePerKm": "15.00", "maxIncreasePercent": 50})
-        self.assertEqual(self.client.get("/api/v1/fares/quote", {"from": "MAA", "to": "MAA"}).status_code, 400)
+        self.assertEqual(self.client.get("/api/v1/fares/quote", {"from": place_id("MAA"), "to": place_id("MAA")}).status_code, 400)
 
     def test_publish_within_range_only(self):
         self.assertEqual(self.publish(self.range.min_fare - 10).status_code, 400)
@@ -143,7 +143,7 @@ class FareEnforcementTests(APITestCase):
         self.assertEqual(self.publish(self.range.min_fare).status_code, 400)  # new rides use the new rate
 
     def test_preview_returns_range(self):
-        r = self.client.post("/api/v1/risk/preview", {"from": "MAA", "to": "BLR", "depart": tomorrow().strftime("%Y-%m-%dT%H:%M")}, format="json")
+        r = self.client.post("/api/v1/risk/preview", {"from": place_id("MAA"), "to": place_id("BLR"), "depart": tomorrow().strftime("%Y-%m-%dT%H:%M")}, format="json")
         self.assertEqual((r.json()["minFare"], r.json()["maxFare"]), (self.range.min_fare, self.range.max_fare))
 
 
@@ -155,50 +155,10 @@ class FakeResponse(io.BytesIO):
         return False
 
 
-class RouteDistanceCommandTests(TestCase):
+class RouteProfileAdminTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         seed_geo()
-
-    def matrix(self):
-        cities = list(City.objects.filter(is_active=True).order_by("code"))
-        n = len(cities)
-        return {"distances": [[0 if i == j else 100 + i + j for j in range(n)] for i in range(n)]}, cities
-
-    @override_settings(ORS_API_KEY="test-key")
-    def test_fetches_once_and_keeps_manual(self):
-        RouteProfile.objects.between("BOM", "PNQ").update(km=999, km_source=DistanceSource.MANUAL)
-        manual = RouteProfile.objects.between("BOM", "PNQ").get()
-        body, cities = self.matrix()
-        with mock.patch("urllib.request.urlopen", return_value=FakeResponse(json.dumps(body).encode())) as urlopen:
-            call_command("fetch_route_distances", stdout=io.StringIO())
-        req = urlopen.call_args[0][0]
-        self.assertEqual(req.headers["Authorization"], "test-key")
-        sent = json.loads(req.data)
-        self.assertEqual(len(sent["locations"]), len(cities))
-        self.assertEqual(sent["locations"][0], [cities[0].lng, cities[0].lat])  # [lng, lat] order
-        self.assertEqual(RouteProfile.objects.filter(km_source=DistanceSource.ORS).count(), 90)
-        manual.refresh_from_db()
-        self.assertEqual((manual.km, manual.km_source), (999, DistanceSource.MANUAL))
-        i, j = [c.code for c in cities].index("BLR"), [c.code for c in cities].index("MAA")
-        self.assertEqual(RouteProfile.objects.between("BLR", "MAA").get().km, 100 + i + j)
-
-    @override_settings(ORS_API_KEY="test-key")
-    def test_failure_keeps_estimates(self):
-        before = dict(RouteProfile.objects.values_list("pk", "km"))
-        err = io.StringIO()
-        with mock.patch("urllib.request.urlopen", side_effect=TimeoutError("slow")):
-            call_command("fetch_route_distances", stdout=io.StringIO(), stderr=err)
-        self.assertIn("Keeping the current distances", err.getvalue())
-        self.assertEqual(dict(RouteProfile.objects.values_list("pk", "km")), before)
-
-    @override_settings(ORS_API_KEY="")
-    def test_no_key_keeps_estimates(self):
-        err = io.StringIO()
-        with mock.patch("urllib.request.urlopen") as urlopen:
-            call_command("fetch_route_distances", stdout=io.StringIO(), stderr=err)
-        urlopen.assert_not_called()
-        self.assertIn("ORS_API_KEY is not set", err.getvalue())
 
     def test_admin_edit_marks_distance_manual(self):
         root = User.objects.create_superuser("+919000000001", password="Root-pass-424242")

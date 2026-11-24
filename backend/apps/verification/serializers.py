@@ -29,8 +29,17 @@ class VerificationSubmitSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         user = self.context.get("user")
-        if not (attrs.get("email") or "").strip() and not (user and user.email):
+        email = (attrs.get("email") or "").strip().lower()
+        if user and user.email:
+            attrs["email"] = user.email  # the sign-in email is where decisions go; it isn't changed here
+        elif not email:
             raise serializers.ValidationError({"email": "Enter your email address. We email you when your documents are reviewed."})
+        else:
+            from apps.accounts.models import User
+
+            if User.objects.filter(email__iexact=email).exclude(pk=getattr(user, "pk", None)).exists():
+                raise serializers.ValidationError({"email": "This email is already used by another account."})
+            attrs["email"] = email
         if attrs["id_type"] == IdType.AADHAAR and not attrs.get("aadhaar_masked"):
             raise serializers.ValidationError(
                 {"aadhaar_masked": "Upload the masked Aadhaar downloaded from UIDAI and confirm that it is masked."}

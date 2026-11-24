@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from apps.payments import money
 from apps.payments.models import PaymentSettings, Refund
-from apps.rides.serializers import DriverOutSerializer, VehicleOutSerializer, driver_payload, vehicle_payload
+from apps.rides.serializers import area_payload, DriverOutSerializer, VehicleOutSerializer, driver_payload, vehicle_payload
 from apps.rides.services import driver_stats
 
 from . import alerts, completion
@@ -120,6 +120,8 @@ def _ride_snapshot(ride, stats, show_vehicle_number):
         "source": "published",
         "from": ride.origin_id,
         "to": ride.destination_id,
+        "from_area": area_payload(ride.origin),
+        "to_area": area_payload(ride.destination),
         "date": timezone.localtime(ride.depart).date().isoformat(),
         "depart": _local(ride.depart),
         "arrive": _local(ride.arrive),
@@ -239,6 +241,8 @@ class TripEventOutSerializer(serializers.Serializer):
 
 class BookingRideSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    from_area = serializers.DictField(help_text="{code, name, district, state, region}")
+    to_area = serializers.DictField()
     to = serializers.CharField()
     depart = serializers.CharField()
     arrive = serializers.CharField()

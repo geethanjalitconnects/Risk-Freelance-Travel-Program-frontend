@@ -1,4 +1,4 @@
-"""Seed data copied from frontend src/data/cities.js.
+"""Sample areas for tests only (apps.geo.testing), copied from frontend src/data/cities.js.
 
 "coast" drives the seasonal weather model: east = north-east monsoon (Oct-Dec),
 west = south-west monsoon (Jun-Sep), inland = milder.

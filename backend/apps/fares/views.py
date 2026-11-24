@@ -6,7 +6,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.geo.fields import CityField
+from apps.places.fields import PlaceField
+from apps.risk.serializers import SAME_AREA
 from apps.risk.services import route_between
 from common.serializers import FromFieldMixin
 
@@ -14,12 +15,12 @@ from .services import fare_range
 
 
 class QuoteInputSerializer(FromFieldMixin, serializers.Serializer):
-    origin = CityField()
-    to = CityField()
+    origin = PlaceField()
+    to = PlaceField()
 
     def validate(self, attrs):
-        if attrs["from"].code == attrs["to"].code:
-            raise serializers.ValidationError({"to": "Destination must differ from the start."})
+        if attrs["from"].area == attrs["to"].area:
+            raise serializers.ValidationError({"to": SAME_AREA})
         return attrs
 
 
@@ -42,8 +43,8 @@ class FareQuoteView(APIView):
 
     @extend_schema(
         parameters=[
-            OpenApiParameter("from", OpenApiTypes.STR, required=True, description="City code or name"),
-            OpenApiParameter("to", OpenApiTypes.STR, required=True, description="City code or name"),
+            OpenApiParameter("from", OpenApiTypes.STR, required=True, description="Google place ID"),
+            OpenApiParameter("to", OpenApiTypes.STR, required=True, description="Google place ID"),
         ],
         responses=FareQuote,
     )

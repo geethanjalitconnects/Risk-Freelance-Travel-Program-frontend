@@ -63,8 +63,12 @@ class Ride(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     driver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="rides")
 
+    # Areas (taluks) of the two picked places, and the Google place IDs themselves (Google allows
+    # place IDs to be kept indefinitely; their coordinates live in places.PlaceCache, max 30 days).
     origin = models.ForeignKey("geo.City", on_delete=models.PROTECT, related_name="+")
     destination = models.ForeignKey("geo.City", on_delete=models.PROTECT, related_name="+")
+    origin_place_id = models.CharField(max_length=300, blank=True)
+    destination_place_id = models.CharField(max_length=300, blank=True)
     pickup = models.CharField(max_length=120)
     dropoff = models.CharField(max_length=120)
 

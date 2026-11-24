@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import User
-from apps.geo.seed import seed_geo
+from apps.geo.testing import place_id, seed_geo
 
 
 class RiskApiTests(APITestCase):
@@ -28,7 +28,7 @@ class RiskApiTests(APITestCase):
     def test_calculator_accepts_codes_and_returns_frontend_shape(self):
         r = self.client.post(
             reverse("risk-score"),
-            {"from": "MAA", "to": "BLR", "depart": "2026-11-15T22:30", "sampleDriver": 0, "sampleVehicle": 0},
+            {"from": place_id("MAA"), "to": place_id("BLR"), "depart": "2026-11-15T22:30", "sampleDriver": 0, "sampleVehicle": 0},
             format="json",
         )
         self.assertEqual(r.status_code, 200, r.content)
@@ -40,18 +40,18 @@ class RiskApiTests(APITestCase):
 
     def test_calculator_accepts_city_names(self):
         r = self.client.post(
-            reverse("risk-score"), {"from": "chennai", "to": "Bengaluru", "depart": "2026-11-15T10:00"}, format="json"
+            reverse("risk-score"), {"from": place_id("MAA"), "to": place_id("BLR"), "depart": "2026-11-15T10:00"}, format="json"
         )
         self.assertEqual(r.status_code, 200, r.content)
 
     def test_same_city_rejected(self):
-        r = self.client.post(reverse("risk-score"), {"from": "MAA", "to": "Chennai", "depart": "2026-11-15T10:00"}, format="json")
+        r = self.client.post(reverse("risk-score"), {"from": place_id("MAA"), "to": place_id("MAA"), "depart": "2026-11-15T10:00"}, format="json")
         self.assertEqual(r.status_code, 400)
         self.assertIn("to", r.json())
 
     def test_unknown_city_and_bad_sample_rejected(self):
         r = self.client.post(
-            reverse("risk-score"), {"from": "Atlantis", "to": "BLR", "depart": "2026-11-15T10:00", "sampleDriver": 99}, format="json"
+            reverse("risk-score"), {"from": "Atlantis", "to": place_id("BLR"), "depart": "2026-11-15T10:00", "sampleDriver": 99}, format="json"
         )
         self.assertEqual(r.status_code, 400)
         self.assertIn("from", r.json())
@@ -60,7 +60,7 @@ class RiskApiTests(APITestCase):
     def test_preview_returns_fare_range_and_duration(self):
         r = self.client.post(
             reverse("risk-preview"),
-            {"from": "Chennai", "to": "Bengaluru", "depart": "2026-11-15T07:00", "vehicle": {"model": "Creta", "year": 2023, "features": ["airbags", "abs"]}},
+            {"from": place_id("MAA"), "to": place_id("BLR"), "depart": "2026-11-15T07:00", "vehicle": {"model": "Creta", "year": 2023, "features": ["airbags", "abs"]}},
             format="json",
         )
         self.assertEqual(r.status_code, 200, r.content)
@@ -76,7 +76,7 @@ class RiskApiTests(APITestCase):
     def test_preview_uses_signed_in_user_verification(self):
         user = User.objects.create_user("+919876543210", name="Asha", verified_id=True, verified_license=True)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(user).access_token}")
-        r = self.client.post(reverse("risk-preview"), {"from": "MAA", "to": "BLR", "depart": "2026-11-15T07:00"}, format="json")
+        r = self.client.post(reverse("risk-preview"), {"from": place_id("MAA"), "to": place_id("BLR"), "depart": "2026-11-15T07:00"}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
         driver = next(c for c in r.json()["risk"]["components"] if c["key"] == "driver")
         self.assertTrue(driver["detail"].startswith("ID verified, licence verified"))
@@ -84,7 +84,7 @@ class RiskApiTests(APITestCase):
     def test_preview_rejects_unknown_feature(self):
         r = self.client.post(
             reverse("risk-preview"),
-            {"from": "MAA", "to": "BLR", "depart": "2026-11-15T07:00", "vehicle": {"features": ["jetpack"]}},
+            {"from": place_id("MAA"), "to": place_id("BLR"), "depart": "2026-11-15T07:00", "vehicle": {"features": ["jetpack"]}},
             format="json",
         )
         self.assertEqual(r.status_code, 400)

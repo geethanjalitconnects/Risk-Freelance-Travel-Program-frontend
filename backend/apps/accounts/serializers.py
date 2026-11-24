@@ -16,6 +16,7 @@ from .models import (
     Gender,
     TrustedContact,
     User,
+    normalize_email,
     normalize_phone,
 )
 
@@ -30,12 +31,16 @@ class PhoneField(serializers.CharField):
             raise serializers.ValidationError(e.messages)
 
 
-class SendOTPSerializer(serializers.Serializer):
-    phone = PhoneField(max_length=20)
+class LowerEmailField(serializers.EmailField):
+    def to_internal_value(self, data):
+        return normalize_email(super().to_internal_value(data))
 
 
-class VerifyOTPSerializer(serializers.Serializer):
-    phone = PhoneField(max_length=20)
+class SendEmailOTPSerializer(serializers.Serializer):
+    email = LowerEmailField(max_length=254, error_messages={"invalid": "Enter a valid email address."})
+
+
+class VerifyEmailOTPSerializer(SendEmailOTPSerializer):
     code = serializers.CharField(max_length=10)
 
     def validate_code(self, value):
@@ -45,9 +50,9 @@ class VerifyOTPSerializer(serializers.Serializer):
         return value
 
 
-class OTPSentSerializer(serializers.Serializer):
+class EmailOTPSentSerializer(serializers.Serializer):
     sent = serializers.BooleanField()
-    phone = serializers.CharField()
+    email = serializers.CharField()
     expires_in = serializers.IntegerField()
     resend_in = serializers.IntegerField()
 
@@ -120,8 +125,9 @@ class MeSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.BOOL)
     def get_profile_complete(self, user):
-        """False until the user has entered a name (the sign-up details step)."""
-        return bool(user.name.strip())
+        """False until the user has entered a name and a mobile number (the sign-up details step).
+        The mobile number is for drivers / passengers and SOS, not for signing in."""
+        return bool(user.name.strip() and user.phone)
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_driver_verification(self, user):
@@ -137,11 +143,27 @@ class MeUpdateSerializer(serializers.ModelSerializer):
     langs = serializers.ListField(
         source="languages", child=serializers.CharField(max_length=30), max_length=10, allow_empty=False
     )
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = LowerEmailField(required=False, allow_blank=True)
+    phone = PhoneField(max_length=20, required=False)
 
     class Meta:
         model = User
-        fields = ["name", "email", "gender", "bio", "langs"]
+        fields = ["name", "email", "phone", "gender", "bio", "langs"]
+
+    def validate_email(self, value):
+        """The email is the sign-in address: it can be added once (accounts made before email
+        sign-in) but not changed or removed here, so nobody can lock an account out."""
+        current = self.instance.email
+        if current and value != current:
+            raise serializers.ValidationError("Your sign-in email can't be changed here. Contact support to change it.")
+        if value and User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("This email is already used by another account.")
+        return value
+
+    def validate_phone(self, value):
+        if User.objects.filter(phone=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("This mobile number is already used by another account.")
+        return value
 
     def validate_name(self, value):
         value = " ".join(value.split())

@@ -125,8 +125,9 @@ def _locked(v) -> DriverVerification:
 
 
 def _save_email(user, email):
-    email = (email or "").strip()
-    if email and email != user.email:
+    """Only fills in a missing email: an existing one is the user's sign-in address."""
+    email = (email or "").strip().lower()
+    if email and not user.email:
         user.email = email
         user.save(update_fields=["email"])
 

@@ -8,7 +8,6 @@ from .base import (
     EMAIL_BACKEND,
     PAYOUT_ENCRYPTION_KEYS,
     SECRET_KEY,
-    SMS_BACKEND,
     env,
 )
 
@@ -16,9 +15,6 @@ DEBUG = False
 
 if SECRET_KEY.startswith("dev-insecure"):
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY for production.")
-
-if not SMS_BACKEND or SMS_BACKEND.endswith(("ConsoleSMSBackend", "LocmemSMSBackend")):
-    raise ImproperlyConfigured("Set SMS_BACKEND to a real SMS provider backend for production.")
 
 if not DOCUMENT_ENCRYPTION_KEYS:
     raise ImproperlyConfigured("Set DOCUMENT_ENCRYPTION_KEYS (manage.py generate_document_key) for production.")

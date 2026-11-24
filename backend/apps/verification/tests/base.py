@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import User
-from apps.geo.seed import seed_geo
+from apps.geo.testing import seed_geo
 
 JPEG = b"\xff\xd8\xff\xe0" + b"fake jpeg body " * 20
 PNG = b"\x89PNG\r\n\x1a\n" + b"fake png body " * 20
@@ -78,5 +78,8 @@ class VerificationTestBase(APITestCase):
         return services.approve(v, admin, **kwargs)
 
     def submit(self, user=None, **over):
-        self.as_user(user or self.driver)
+        user = user or self.driver
+        if "email" not in over and user != self.driver:
+            over["email"] = f"user-{user.pk.hex[:8]}@example.com"  # emails are unique per account
+        self.as_user(user)
         return self.client.post("/api/v1/me/driver-verification", self.form(**over), format="multipart")

@@ -1,16 +1,13 @@
-"""Pluggable SMS sending.
+"""SMS is turned off: no provider is configured and nothing is ever sent.
 
-Pick a backend with the ``SMS_BACKEND`` setting (a dotted path). When ``DEBUG`` is on, the
-console backend is always used, so no SMS is ever sent from a development machine.
-
-To add a real provider (MSG91, Twilio, AWS SNS, ...) subclass ``BaseSMSBackend``, implement
-``send()`` and point ``SMS_BACKEND`` at it, e.g. ``SMS_BACKEND=myproject.sms.Msg91Backend``.
+With DEBUG on, messages are printed to the console. Otherwise ``DisabledSMSBackend`` refuses them
+with ``SMSError``, which callers already handle (phone OTP answers 503; trip alerts are logged
+and skipped). Tests may still point the optional ``SMS_BACKEND`` setting at ``LocmemSMSBackend``.
 """
 import logging
 import sys
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
 
 logger = logging.getLogger(__name__)
@@ -36,6 +33,13 @@ class ConsoleSMSBackend(BaseSMSBackend):
         sys.stdout.flush()
 
 
+class DisabledSMSBackend(BaseSMSBackend):
+    """Production: SMS is not offered, so every message is refused."""
+
+    def send(self, phone, message):
+        raise SMSError("SMS is turned off")
+
+
 class LocmemSMSBackend(BaseSMSBackend):
     """Tests: keep messages in memory (``LocmemSMSBackend.outbox``)."""
 
@@ -46,10 +50,8 @@ class LocmemSMSBackend(BaseSMSBackend):
 
 
 def get_backend() -> BaseSMSBackend:
-    path = CONSOLE_BACKEND if settings.DEBUG else settings.SMS_BACKEND
-    if not path:
-        raise ImproperlyConfigured("Set SMS_BACKEND to an SMS provider backend (DEBUG is off).")
-    return import_string(path)()
+    path = CONSOLE_BACKEND if settings.DEBUG else getattr(settings, "SMS_BACKEND", "")
+    return import_string(path)() if path else DisabledSMSBackend()
 
 
 def send_sms(phone: str, message: str) -> None:

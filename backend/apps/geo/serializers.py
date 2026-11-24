@@ -3,9 +3,10 @@ from rest_framework import serializers
 from .models import City
 
 
-class CitySerializer(serializers.ModelSerializer):
+class AreaSerializer(serializers.ModelSerializer):
     meeting_points = serializers.SlugRelatedField(many=True, read_only=True, slug_field="name")
+    region = serializers.CharField(read_only=True)
 
     class Meta:
         model = City
-        fields = ["code", "name", "state", "lat", "lng", "coast", "meeting_points"]
+        fields = ["code", "name", "district", "state", "region", "meeting_points"]

@@ -3,12 +3,11 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.geo.fields import CityField
 from apps.fares.services import fare_range
-from apps.geo.routing import duration_minutes
-from apps.risk import services as risk_services
+from apps.geo.routing import duration_minutes, road_km
+from apps.places.fields import PlaceField
 from apps.risk.scoring import VEHICLE_FEATURES
-from apps.risk.serializers import RiskSerializer
+from apps.risk.serializers import SAME_AREA, RiskSerializer
 from apps.verification.services import get_verification, is_approved
 from common.serializers import FromFieldMixin
 
@@ -19,6 +18,10 @@ MIN_VEHICLE_YEAR = 1995
 
 
 # ---------------------------------------------------------------- read
+
+
+def area_payload(area) -> dict:
+    return {"code": area.code, "name": area.name, "district": area.district, "state": area.state, "region": area.region}
 
 
 def driver_payload(driver, stats) -> dict:
@@ -102,8 +105,13 @@ class RideSerializer(FromFieldMixin, serializers.Serializer):
 
     id = serializers.UUIDField()
     source = serializers.SerializerMethodField()
-    origin = CityField(source="origin")
-    to = CityField(source="destination")
+    origin = PlaceField(source="origin", help_text="Area code of the start")
+    to = PlaceField(source="destination", help_text="Area code of the destination")
+    from_area = serializers.SerializerMethodField()
+    to_area = serializers.SerializerMethodField()
+    from_place_id = serializers.CharField(source="origin_place_id")
+    to_place_id = serializers.CharField(source="destination_place_id")
+    match = serializers.SerializerMethodField()
     date = serializers.SerializerMethodField()
     depart = serializers.DateTimeField()
     duration_min = serializers.IntegerField()
@@ -142,6 +150,19 @@ class RideSerializer(FromFieldMixin, serializers.Serializer):
         return "published"
 
     @extend_schema_field(OpenApiTypes.DATE)
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_from_area(self, ride):
+        return area_payload(ride.origin)
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_to_area(self, ride):
+        return area_payload(ride.destination)
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_match(self, ride):
+        """Search only: how far the ride's start / end are from the searched places (km)."""
+        return getattr(ride, "_match", None)
+
     def get_date(self, ride):
         return timezone.localtime(ride.depart).date().isoformat()
 
@@ -259,10 +280,14 @@ class VehicleInSerializer(serializers.Serializer):
 
 
 class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
-    """Publish (POST) and edit (PATCH) a ride. Field names follow the ride object."""
+    """Publish (POST) and edit (PATCH) a ride. ``from`` / ``to`` are Google place IDs picked from
+    the suggestions; ``fromLabel`` / ``toLabel`` are the picked suggestion's text, offered as the
+    pickup / drop-off next to the area's meeting points."""
 
-    origin = CityField(source="origin")
-    to = CityField(source="destination")
+    origin = PlaceField(source="origin")
+    to = PlaceField(source="destination")
+    from_label = serializers.CharField(required=False, allow_blank=True, max_length=120, write_only=True)
+    to_label = serializers.CharField(required=False, allow_blank=True, max_length=120, write_only=True)
     depart = serializers.DateTimeField(help_text='Local time, "YYYY-MM-DDTHH:mm".')
     # Per seat. The allowed range depends on the route (see apps.fares); checked in validate().
     price = serializers.IntegerField(min_value=1, max_value=1_000_000)
@@ -291,10 +316,22 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
             raise serializers.ValidationError("This ride has already left and can no longer be edited.")
 
         errors = {}
+        labels = {"pickup": attrs.pop("from_label", "").strip(), "dropoff": attrs.pop("to_label", "").strip()}
+        # Picked places (places.resolve.Resolved) carry coordinates; stored rides only their areas.
+        picked_origin, picked_destination = attrs.pop("origin", None), attrs.pop("destination", None)
+        if (picked_origin is None) != (picked_destination is None):
+            missing = "to" if picked_destination is None else "from"
+            raise serializers.ValidationError({missing: "Pick both places from the suggestions."})
+        if picked_origin is not None:
+            attrs["origin"], attrs["origin_place_id"] = picked_origin.area, picked_origin.place_id
+            attrs["destination"], attrs["destination_place_id"] = picked_destination.area, picked_destination.place_id
+            self._km = road_km(picked_origin, picked_destination)
+        else:
+            self._km = ride.km
         origin = attrs.get("origin", ride.origin if ride else None)
         destination = attrs.get("destination", ride.destination if ride else None)
         if origin.code == destination.code:
-            errors["to"] = "Destination must differ from the start."
+            errors["to"] = SAME_AREA
 
         if "depart" in attrs and attrs["depart"] <= timezone.now():
             errors["depart"] = "That time has already passed."
@@ -312,7 +349,9 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
             ("pickup", origin, ride.origin if ride else None),
             ("dropoff", destination, ride.destination if ride else None),
         ):
-            msg = self._resolve_point(attrs, key, city, city_changed=old_city is not None and old_city != city)
+            msg = self._resolve_point(
+                attrs, key, city, city_changed=old_city is not None and old_city != city, label=labels[key]
+            )
             if msg:
                 errors[key] = msg
 
@@ -320,7 +359,7 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
             errors.update(self._booked_ride_errors(ride, attrs))
 
         if "to" not in errors and "price" not in errors:
-            msg = self._fare_error(ride, attrs, origin, destination)
+            msg = self._fare_error(ride, attrs, origin, destination, self._km)
             if msg:
                 errors["price"] = msg
 
@@ -329,7 +368,7 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
         return attrs
 
     @staticmethod
-    def _fare_error(ride, attrs, origin, destination):
+    def _fare_error(ride, attrs, origin, destination, km):
         """The fare must sit between the route's minimum and maximum. Checked when publishing, and
         when an edit changes the fare or the route (current fare settings apply). A booked ride's
         fare is locked separately."""
@@ -337,7 +376,6 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
         if ride is not None and "price" not in attrs and not route_changed:
             return None
         price = attrs.get("price", ride.price if ride else None)
-        km = risk_services.route_between(origin, destination).km
         return fare_range(km).error_for(price)
 
     @staticmethod
@@ -352,18 +390,20 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
         merged["features"] = list(dict.fromkeys(merged["features"]))  # de-duplicate, keep order
         return merged
 
-    def _resolve_point(self, attrs, key, city, city_changed):
-        """Pickup / drop-off must be one of the city's meeting points; blank means the first one."""
+    def _resolve_point(self, attrs, key, city, city_changed, label=""):
+        """Pickup / drop-off: the picked place itself or one of the area's meeting points.
+        Blank means the picked place (without one: the first meeting point, else the area)."""
         points = list(city.meeting_points.order_by("order", "name").values_list("name", flat=True))
+        if self.instance is not None and not city_changed:
+            points.append(getattr(self.instance, key))  # the current choice stays valid
+        options = ([label] if label else []) + points
         value = attrs.get(key, "")
         if value:
-            if value not in points:
-                return f"Choose a meeting point in {city.name}."
+            if value not in options:
+                return f"Choose the picked place or a meeting point in {city.name}."
             return None
         if self.instance is None or city_changed or key in attrs:
-            if not points:
-                return f"{city.name} has no meeting points yet."
-            attrs[key] = points[0]
+            attrs[key] = options[0] if options else city.name
         return None
 
     @staticmethod
@@ -399,8 +439,7 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
 
     # -- persistence --
 
-    @staticmethod
-    def _apply(ride, data):
+    def _apply(self, ride, data):
         vehicle = data.pop("vehicle", None)
         for field, value in data.items():
             setattr(ride, field, value)
@@ -408,9 +447,8 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
             ride.vehicle_model = vehicle["model"]
             ride.vehicle_year = vehicle["year"]
             ride.vehicle_features = vehicle["features"]
-        km = risk_services.route_between(ride.origin, ride.destination).km
-        ride.km = km
-        ride.duration_min = duration_minutes(km)
+        ride.km = self._km
+        ride.duration_min = duration_minutes(self._km)
 
     def create(self, validated_data):
         ride = Ride(driver=self.context["request"].user)
@@ -430,8 +468,8 @@ class RideWriteSerializer(FromFieldMixin, serializers.Serializer):
 class RideSearchSerializer(FromFieldMixin, serializers.Serializer):
     SORTS = ("earliest", "cheapest", "safest")
 
-    origin = CityField()
-    to = CityField()
+    origin = PlaceField()
+    to = PlaceField()
     date = serializers.DateField()
     seats = serializers.IntegerField(min_value=1, max_value=4, default=1)
     sort = serializers.ChoiceField(choices=SORTS, default="earliest")
@@ -442,8 +480,8 @@ class RideSearchSerializer(FromFieldMixin, serializers.Serializer):
     max_risk = serializers.IntegerField(min_value=1, max_value=101, required=False)
 
     def validate(self, attrs):
-        if attrs["from"].code == attrs["to"].code:
-            raise serializers.ValidationError({"to": "Leaving from and going to must be different cities."})
+        if attrs["from"].place_id == attrs["to"].place_id:
+            raise serializers.ValidationError({"to": "Leaving from and going to must be different places."})
         if attrs["date"] < timezone.localdate():
             raise serializers.ValidationError({"date": "Choose today or a later date."})
         return attrs
