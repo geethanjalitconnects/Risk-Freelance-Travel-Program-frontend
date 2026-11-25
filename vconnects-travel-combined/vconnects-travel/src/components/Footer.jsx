@@ -41,7 +41,6 @@ export default function Footer() {
       </div>
       <div className="container footer-bottom">
         <span>VConnects · Share the road.</span>
-        <p>Route incident data and weather in the risk score are illustrative. No payments are taken in the app.</p>
       </div>
     </footer>
   );
