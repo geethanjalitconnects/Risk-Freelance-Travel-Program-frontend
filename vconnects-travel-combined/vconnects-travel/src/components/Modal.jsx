@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import Icon from './Icon.jsx';
 
-export default function Modal({ title, onClose, children, tone }) {
+// `footer` stays pinned below the scrolling body (e.g. a price summary and the action buttons).
+export default function Modal({ title, onClose, children, tone, footer }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
@@ -23,6 +24,7 @@ export default function Modal({ title, onClose, children, tone }) {
           </button>
         </div>
         <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>
   );

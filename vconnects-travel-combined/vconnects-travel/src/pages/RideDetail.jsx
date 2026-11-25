@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, navigate } from '../router.jsx';
 import { VEHICLE_FEATURES } from '../lib/risk.js';
 import { fmtDateTime, fmtDuration, fmtPrice, fmtTime, toIsoLocal } from '../lib/format.js';
@@ -11,7 +12,6 @@ import { getPriceQuote, payForBooking } from '../lib/checkout.js';
 import { fmtPaise } from '../lib/walletApi.js';
 import Avatar from '../components/Avatar.jsx';
 import Icon from '../components/Icon.jsx';
-import Modal from '../components/Modal.jsx';
 import RiskBadge from '../components/RiskBadge.jsx';
 import RiskBreakdown from '../components/RiskBreakdown.jsx';
 import PassengerList from '../components/PassengerList.jsx';
@@ -28,6 +28,7 @@ export default function RideDetail({ id }) {
   const [bookErr, setBookErr] = useState('');
   const [quote, setQuote] = useState(null);
   const [held, setHeld] = useState(null); // booking created, waiting for payment
+  const [paying, setPaying] = useState(false); // Razorpay open: hide our modal so only one dialog shows
 
   if (loading && !ride) return <div className="container page"><p className="muted">Loading ride…</p></div>;
   if (error || !ride) {
@@ -57,6 +58,7 @@ export default function RideDetail({ id }) {
       const b = held || await createBooking(ride.id, n);
       if (b.status !== 'pending_payment') return navigate('/trips'); // payments switched off
       setHeld(b);
+      setPaying(true);
       await payForBooking(b.id);
       navigate('/trips');
     } catch (e) {
@@ -65,6 +67,7 @@ export default function RideDetail({ id }) {
         : e.message);
       if (!e.dismissed && !held) reload();
     } finally {
+      setPaying(false);
       setBusy(false);
     }
   }
@@ -163,8 +166,19 @@ export default function RideDetail({ id }) {
         </aside>
       </div>
 
-      {confirm && (
-        <Modal title="Confirm your booking" onClose={() => setConfirm(false)}>
+      {confirm && !paying && (
+        <BookingDialog title="Confirm your booking" onClose={() => setConfirm(false)} footer={(
+          <>
+            {quote && <FareSummary q={quote} />}
+            {bookErr && <p className="form-error" role="alert">{bookErr}</p>}
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirm(false)}>Cancel</button>
+              <button className="btn btn-accent" onClick={book} disabled={busy || (Boolean(bookErr) && !held)}>
+                {busy ? 'Opening payment…' : quote?.paymentsEnabled ? (held ? 'Try payment again' : `Pay ${fmtPaise(quote.total)}`) : 'Confirm booking'}
+              </button>
+            </div>
+          </>
+        )}>
           <p><b>{from?.name} → {to?.name}</b>, {fmtDateTime(ride.depart)}</p>
           <p>{n} seat{n > 1 ? 's' : ''} · Driver {ride.driver.name}</p>
           <PriceBreakdown rideId={ride.id} seats={n} onQuote={setQuote} />
@@ -175,14 +189,7 @@ export default function RideDetail({ id }) {
               You have no trusted contacts yet. <Link to="/profile">Add one in your profile</Link> so check-ins and SOS have someone to reach.
             </p>
           )}
-          {bookErr && <p className="form-error" role="alert">{bookErr}</p>}
-          <div className="modal-actions">
-            <button className="btn btn-ghost" onClick={() => setConfirm(false)}>Cancel</button>
-            <button className="btn btn-accent" onClick={book} disabled={busy || (Boolean(bookErr) && !held)}>
-              {busy ? 'Opening payment…' : quote?.paymentsEnabled ? (held ? 'Try payment again' : `Pay ${fmtPaise(quote.total)}`) : 'Confirm booking'}
-            </button>
-          </div>
-        </Modal>
+        </BookingDialog>
       )}
     </div>
   );
@@ -190,6 +197,17 @@ export default function RideDetail({ id }) {
 
 
 // Ride amount + VConnects platform fee = total, from the server (all maths there).
+function FareSummary({ q }) {
+  return (
+    <dl className="breakdown">
+      <dt>Ride fare</dt><dd>{fmtPaise(q.rideAmount)}</dd>
+      <dt>Platform fee ({q.platformFeePercent}%)</dt><dd>{fmtPaise(q.platformFee)}</dd>
+      <dt><b>Total</b></dt><dd><b>{fmtPaise(q.total)}</b></dd>
+    </dl>
+  );
+}
+
+// Loads the quote (shown in the modal footer by FareSummary) and renders the booking notes.
 function PriceBreakdown({ rideId, seats, onQuote }) {
   const [q, setQ] = useState(null);
   useEffect(() => {
@@ -200,13 +218,50 @@ function PriceBreakdown({ rideId, seats, onQuote }) {
   if (!q) return null;
   return (
     <>
-      <dl className="breakdown">
-        <dt>Ride fare</dt><dd>{fmtPaise(q.rideAmount)}</dd>
-        <dt>Platform fee ({q.platformFeePercent}%)</dt><dd>{fmtPaise(q.platformFee)}</dd>
-        <dt><b>Total</b></dt><dd><b>{fmtPaise(q.total)}</b></dd>
-      </dl>
       <p className="fine">Your name and phone number will be shared with the driver once your booking is confirmed.</p>
       {q.paymentsEnabled && <p className="fine">Your seats are held for {q.seatHoldMinutes} minutes while you pay. The booking is confirmed once we verify the payment.</p>}
     </>
+  );
+}
+
+
+// Booking confirmation dialog. Rendered straight into <body> (portal) so the page's entrance
+// animation and <main>'s stacking layer can't trap it: it always covers the whole screen,
+// sits above the header, and stays centred. The footer (fare + buttons) is pinned at the bottom.
+function BookingDialog({ title, onClose, footer, children }) {
+  const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onCloseRef.current();
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const prevFocus = document.activeElement;
+    dialogRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
+    };
+  }, []);
+
+  return createPortal(
+    <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onCloseRef.current()}>
+      <div ref={dialogRef} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="modal-head">
+          <h3>{title}</h3>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
+      </div>
+    </div>,
+    document.body
   );
 }

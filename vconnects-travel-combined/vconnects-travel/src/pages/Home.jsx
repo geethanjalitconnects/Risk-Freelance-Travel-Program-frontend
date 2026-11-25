@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Link, navigate } from '../router.jsx';
+import { Link, navigate, scrollToId } from '../router.jsx';
 import SearchForm from '../components/SearchForm.jsx';
 import Icon from '../components/Icon.jsx';
 import DrivingCar from '../components/DrivingCar.jsx';
@@ -35,21 +35,24 @@ function Popular() {
   );
 }
 
+const FIRST_INPUT = '.sf-field input';
+
 export default function Home() {
   const journeyRef = useRef(null);
+  const goTo = (id) => (e) => { e.preventDefault(); scrollToId(id, FIRST_INPUT); };
   return (
     <>
       <div className="home-journey" ref={journeyRef}>
         <div className="journey-car-track"><DrivingCar journeyRef={journeyRef} /></div>
-        <section className="journey-intro" aria-label="VConnects carpooling">
+        <section className="journey-intro" id="hero" aria-label="VConnects carpooling">
           <div className="container">
             <div className="journey-copy">
               <span className="tag">VConnects · Safer carpooling</span>
               <h1>Risk<br /><span className="grad-text">Freelance Travel Program</span></h1>
               <p>VConnects matches you with verified drivers heading your way, and scores every trip so you can pick the safest option, not just the cheapest.</p>
-              <a href="#find" className="btn btn-accent journey-find">Find a ride <Icon name="arrow" size={16} /></a>
+              <a href="#/" onClick={goTo('search-form')} className="btn btn-accent journey-find">Find a ride <Icon name="arrow" size={16} /></a>
             </div>
-            <div className="journey-search"><SearchForm /><Popular /></div>
+            <div className="journey-search" id="search-form"><SearchForm /><Popular /></div>
           </div>
         </section>
         {SECTIONS.map((section, index) => (
@@ -75,7 +78,7 @@ export default function Home() {
             <span className="tag">Ready when you are</span>
             <h2>Share the road.<br /><span className="grad-text">Split the cost.</span></h2>
             <div className="cta-row">
-              <a href="#find" className="btn btn-accent">Find a ride <Icon name="arrow" size={16} /></a>
+              <a href="#/" onClick={goTo('find')} className="btn btn-accent">Find a ride <Icon name="arrow" size={16} /></a>
               <Link to="/publish" className="btn btn-ghost">Offer a ride</Link>
             </div>
           </div></div>

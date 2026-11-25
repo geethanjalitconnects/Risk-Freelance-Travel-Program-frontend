@@ -1,4 +1,4 @@
-import { Link } from '../router.jsx';
+import { Link, parseHash, scrollToId } from '../router.jsx';
 import Logo from './Logo.jsx';
 import Icon from './Icon.jsx';
 
@@ -15,7 +15,11 @@ export default function Footer() {
         </div>
         <div>
           <h4>Travel</h4>
-          <Link to="/">Find a ride</Link>
+          <Link to="/" onClick={(e) => {
+            // Already home: the hash doesn't change, so scroll up to the hero ourselves.
+            // From another page the router opens "/" at the top, which shows the hero.
+            if (parseHash().path === '/' && scrollToId('hero')) e.preventDefault();
+          }}>Find a ride</Link>
           <Link to="/publish">Publish a ride</Link>
           <Link to="/trips">My trips</Link>
         </div>
