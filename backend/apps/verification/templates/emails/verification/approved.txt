@@ -1,8 +1,0 @@
-{% autoescape off %}Hi {{ name }},
-
-Your profile has been approved. You can now post rides.
-
-Post your first ride: {{ link }}
-
-Thanks for driving with VConnects Travel.
-{% endautoescape %}

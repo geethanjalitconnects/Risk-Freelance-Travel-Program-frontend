@@ -1,2 +1,0 @@
-{% autoescape off %}Please re-upload your VConnects verification documents
-{% endautoescape %}
